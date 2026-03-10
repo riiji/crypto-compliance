@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+dist
+coverage
+.env
+.env.*
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+README.md
