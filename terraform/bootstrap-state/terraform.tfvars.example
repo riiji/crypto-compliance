@@ -1,0 +1,3 @@
+project_id = "vernal-parser-328009"
+bucket_name = "vernal-parser-328009-crypto-compliance-tfstate-prod"
+location    = "us-central1"

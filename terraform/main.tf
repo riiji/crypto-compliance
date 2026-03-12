@@ -6,6 +6,16 @@ module "apis" {
   disable_on_destroy = var.disable_api_on_destroy
 }
 
+module "artifact_registry" {
+  source = "./modules/artifact_registry"
+
+  project_id    = var.project_id
+  location      = var.github_actions_artifact_registry_location
+  repository_id = var.github_actions_artifact_registry_repository
+
+  depends_on = [module.apis]
+}
+
 module "network" {
   source = "./modules/network"
 

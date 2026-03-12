@@ -19,3 +19,4 @@ postgres_password      = "change-me"
 
 valkey_instance_id = "crypto-compliance-valkey"
 valkey_location    = "us-central1"
+valkey_mode        = "CLUSTER_DISABLED"

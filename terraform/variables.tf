@@ -19,8 +19,10 @@ variable "enabled_apis" {
   description = "APIs enabled before provisioning resources."
   type        = list(string)
   default = [
+    "artifactregistry.googleapis.com",
     "compute.googleapis.com",
     "container.googleapis.com",
+    "iam.googleapis.com",
     "memorystore.googleapis.com",
     "networkconnectivity.googleapis.com",
     "redis.googleapis.com",
@@ -39,6 +41,51 @@ variable "common_labels" {
   description = "Labels shared across infrastructure resources that support labels."
   type        = map(string)
   default     = {}
+}
+
+variable "github_actions_service_account_id" {
+  description = "Account ID for the GitHub Actions deployment service account."
+  type        = string
+  default     = "github-actions-deployer"
+}
+
+variable "github_actions_service_account_display_name" {
+  description = "Display name for the GitHub Actions deployment service account."
+  type        = string
+  default     = "GitHub Actions Deployer"
+}
+
+variable "github_actions_service_account_description" {
+  description = "Description for the GitHub Actions deployment service account."
+  type        = string
+  default     = "Service account used by GitHub Actions to push images and deploy to GKE."
+}
+
+variable "github_actions_service_account_roles" {
+  description = "Project IAM roles granted to the GitHub Actions deployment service account."
+  type        = list(string)
+  default = [
+    "roles/container.developer",
+    "roles/serviceusage.serviceUsageConsumer",
+  ]
+}
+
+variable "github_actions_artifact_registry_repository" {
+  description = "Artifact Registry repository name used by CI/CD image pushes."
+  type        = string
+  default     = "crypto-compliance"
+}
+
+variable "github_actions_artifact_registry_location" {
+  description = "Artifact Registry repository location used by CI/CD image pushes."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "github_actions_artifact_registry_repository_role" {
+  description = "Artifact Registry IAM role granted to the GitHub Actions deployment service account."
+  type        = string
+  default     = "roles/artifactregistry.writer"
 }
 
 variable "network_name" {
@@ -311,7 +358,7 @@ variable "valkey_maintenance_hour" {
 variable "valkey_mode" {
   description = "Memorystore Valkey mode."
   type        = string
-  default     = "CLUSTER"
+  default     = "CLUSTER_DISABLED"
 
   validation {
     condition     = contains(["CLUSTER", "CLUSTER_DISABLED"], var.valkey_mode)

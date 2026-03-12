@@ -24,13 +24,24 @@ Repository structure:
 - Credentials configured for Terraform (`GOOGLE_APPLICATION_CREDENTIALS` or `gcloud auth application-default login`)
 - Container images published and reachable by GKE
 
-## 1) Provision shared production infra (`terraform/`)
+## 1) Bootstrap production Terraform state bucket (`terraform/bootstrap-state/`)
+
+```bash
+cd /home/ubuntu/crypto-compliance/terraform/bootstrap-state
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
+
+## 2) Provision shared production infra (`terraform/`)
 
 ```bash
 cd /home/ubuntu/crypto-compliance/terraform
 cp terraform.tfvars.example terraform.tfvars
+cp backend.hcl.example backend.hcl
 # edit project_id, passwords, sizing, regions/zones
-terraform init
+terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
@@ -45,41 +56,46 @@ This creates module-based infrastructure:
 
 Note: default Cloud SQL edition is `ENTERPRISE` so `db-custom-*` tiers work. If you switch to `ENTERPRISE_PLUS`, use a `db-perf-optimized-N-*` tier.
 
-Use outputs from this stack for app stacks (`gke_cluster_name`, `gke_location`, `postgres_instance_name`, `valkey_instance_id`, etc.).
+This root stack is the source of truth for backend/frontend production lookups through `terraform_remote_state`.
+GCS backend is configured via partial `backend "gcs"` and `backend.hcl` per HashiCorp docs:
+https://developer.hashicorp.com/terraform/language/backend/gcs
 
-## 2) Deploy backend to GKE (`backend/terraform`)
+## 3) Deploy backend to GKE (`backend/terraform`)
 
 ```bash
 cd /home/ubuntu/crypto-compliance/backend/terraform
 cp terraform.tfvars.example terraform.tfvars
-# set image, project_id, cluster and datastore instance IDs
-terraform init
+cp backend.hcl.example backend.hcl
+# set image, project_id, root_state_bucket, and secrets
+terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
 
 Backend stack resolves at apply time:
 
-- GKE cluster endpoint/CA for Kubernetes provider
-- Cloud SQL private IP for `COMPLIANCE_DB_HOST`
-- Memorystore endpoint for `COMPLIANCE_VALKEY_HOST`
+- GKE cluster endpoint/CA from root state outputs
+- Postgres connection defaults from root state outputs
+- Valkey connection defaults from root state outputs
 
-## 3) Deploy frontend to GKE (`frontend/terraform`)
+## 4) Deploy frontend to GKE (`frontend/terraform`)
 
 ```bash
 cd /home/ubuntu/crypto-compliance/frontend/terraform
 cp terraform.tfvars.example terraform.tfvars
-# set image and backend URL env
-terraform init
+cp backend.hcl.example backend.hcl
+# set image, project_id, root_state_bucket, and env
+terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
 
 ## Suggested order
 
-1. Root infra (`terraform/`)
-2. Backend (`backend/terraform`)
-3. Frontend (`frontend/terraform`)
+1. Bootstrap state bucket (`terraform/bootstrap-state/`)
+2. Root infra (`terraform/`)
+3. Backend (`backend/terraform`)
+4. Frontend (`frontend/terraform`)
 
 ## Development
 
@@ -104,12 +120,33 @@ Workflows:
 `deploy-gke.yml`:
 - Triggered manually via **Actions** UI with `image_tag`.
 - Also auto-runs after successful **push-triggered** `build-push-images.yml` and deploys the matching short-SHA tag.
-- Updates both GKE deployments and waits for rollout.
+- Updates backend image, runs backend TypeORM migrations against production DB, then waits for backend rollout.
+- Updates frontend deployment and waits for rollout.
 
 Required repository secrets:
 
 - `GCP_PROJECT_ID`
 - `GCP_SA_KEY`
+
+GitHub Actions deployer service account is now provisioned by root Terraform:
+
+- output: `github_actions_service_account_email`
+- default roles:
+  - `roles/container.developer`
+  - `roles/serviceusage.serviceUsageConsumer`
+- Artifact Registry repository is created by root Terraform module:
+  - defaults: `crypto-compliance` in `us-central1`
+- explicit repository IAM binding:
+  - repository: `crypto-compliance` in `us-central1` (configurable via terraform vars)
+  - role: `roles/artifactregistry.writer`
+
+Create a JSON key for that service account and store it as `GCP_SA_KEY`:
+
+```bash
+cd /home/ubuntu/crypto-compliance/terraform
+gcloud iam service-accounts keys create ./github-actions-sa-key.json \
+  --iam-account "$(terraform output -raw github_actions_service_account_email)"
+```
 
 Recommended repository variables (defaults are set in workflow):
 

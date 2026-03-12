@@ -3,6 +3,16 @@ output "project_id" {
   value       = var.project_id
 }
 
+output "artifact_registry_repository_id" {
+  description = "Artifact Registry repository ID used by CI/CD."
+  value       = module.artifact_registry.repository_id
+}
+
+output "artifact_registry_repository_location" {
+  description = "Artifact Registry repository location used by CI/CD."
+  value       = module.artifact_registry.location
+}
+
 output "network_name" {
   description = "VPC network name."
   value       = module.network.network_name
@@ -71,4 +81,24 @@ output "valkey_host" {
 output "valkey_port" {
   description = "Memorystore Valkey endpoint port."
   value       = module.valkey.port
+}
+
+output "github_actions_service_account_email" {
+  description = "GitHub Actions deployment service account email."
+  value       = module.github_actions_iam.service_account_email
+}
+
+output "github_actions_service_account_member" {
+  description = "GitHub Actions deployment service account IAM member string."
+  value       = module.github_actions_iam.service_account_member
+}
+
+output "github_actions_service_account_roles" {
+  description = "IAM roles granted to GitHub Actions deployment service account."
+  value       = module.github_actions_iam.project_roles
+}
+
+output "github_actions_artifact_registry_repository_role" {
+  description = "Artifact Registry repository IAM role for GitHub Actions deployment service account."
+  value       = module.github_actions_iam.artifact_registry_repository_role
 }

@@ -31,6 +31,9 @@ resource "google_memorystore_instance" "instance" {
 
   mode                        = var.mode
   engine_version              = var.engine_version
+  engine_configs = {
+    "maxmemory-policy" = "noeviction"
+  }
   authorization_mode          = var.authorization_mode
   transit_encryption_mode     = var.transit_encryption_mode
   deletion_protection_enabled = false
