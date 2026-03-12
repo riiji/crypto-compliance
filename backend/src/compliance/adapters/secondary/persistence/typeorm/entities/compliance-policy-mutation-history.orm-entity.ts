@@ -5,9 +5,14 @@ import type { ComplianceAddressPolicy } from '../../../../../application/ports/o
 @Entity({ name: 'compliance_policy_mutation_history' })
 @Index('idx_compliance_policy_mutation_history_created_at', ['createdAt'])
 @Index('idx_compliance_policy_mutation_history_policy', ['policy', 'createdAt'])
-@Index('idx_compliance_policy_mutation_history_idempotency_key', [
-  'idempotencyKey',
-])
+@Index(
+  'idx_compliance_policy_mutation_history_idempotency_key',
+  ['idempotencyKey'],
+  {
+    unique: true,
+    where: '"idempotency_key" IS NOT NULL',
+  },
+)
 export class CompliancePolicyMutationHistoryOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -50,8 +55,17 @@ export class CompliancePolicyMutationHistoryOrmEntity {
     name: 'idempotency_key',
     type: 'varchar',
     length: 128,
+    nullable: true,
   })
-  idempotencyKey!: string;
+  idempotencyKey!: string | null;
+
+  @Column({
+    name: 'request_hash',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  requestHash!: string | null;
 
   @Column({
     name: 'requested_by',

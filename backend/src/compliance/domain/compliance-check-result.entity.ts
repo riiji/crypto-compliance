@@ -7,6 +7,18 @@ export interface ComplianceSignal {
   score: number;
 }
 
+export type ComplianceJsonPrimitive = string | number | boolean | null;
+export type ComplianceJsonValue =
+  | ComplianceJsonPrimitive
+  | ComplianceJsonObject
+  | ComplianceJsonValue[];
+
+export interface ComplianceJsonObject {
+  [key: string]: ComplianceJsonValue;
+}
+
+export type ComplianceProviderResponsePayload = ComplianceJsonObject;
+
 export interface ComplianceCheckResult {
   address: string;
   network: string;
@@ -17,4 +29,5 @@ export interface ComplianceCheckResult {
   assessmentSource: ComplianceAssessmentSource;
   retrievalSource: ComplianceRetrievalSource;
   isHighRisk: boolean;
+  providerResponsePayload: ComplianceProviderResponsePayload | null;
 }

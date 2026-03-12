@@ -18,6 +18,7 @@ import type {
   ComplianceAssessmentSource,
   ComplianceCheckResult,
   ComplianceCheckStatus,
+  ComplianceProviderResponsePayload,
   ComplianceRetrievalSource,
   ComplianceSignal,
 } from '../../../domain/compliance-check-result.entity';
@@ -33,6 +34,7 @@ interface CachedComplianceCheckResult {
   assessmentSource: ComplianceAssessmentSource;
   retrievalSource?: ComplianceRetrievalSource;
   isHighRisk: boolean;
+  providerResponsePayload?: ComplianceProviderResponsePayload | null;
 }
 
 @Injectable()
@@ -107,6 +109,7 @@ export class ValkeyComplianceCacheAdapter
       assessmentSource: parsed.assessmentSource,
       retrievalSource: parsed.retrievalSource ?? 'provider',
       isHighRisk: parsed.isHighRisk,
+      providerResponsePayload: parsed.providerResponsePayload ?? null,
     };
   }
 
@@ -130,6 +133,7 @@ export class ValkeyComplianceCacheAdapter
       assessmentSource: result.assessmentSource,
       retrievalSource: result.retrievalSource,
       isHighRisk: result.isHighRisk,
+      providerResponsePayload: result.providerResponsePayload,
     };
 
     const safeTtlSeconds =
@@ -310,6 +314,14 @@ export class ValkeyComplianceCacheAdapter
       return false;
     }
     if (typeof record['isHighRisk'] !== 'boolean') {
+      return false;
+    }
+    if (
+      record['providerResponsePayload'] !== undefined &&
+      record['providerResponsePayload'] !== null &&
+      (typeof record['providerResponsePayload'] !== 'object' ||
+        Array.isArray(record['providerResponsePayload']))
+    ) {
       return false;
     }
 

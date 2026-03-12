@@ -8,7 +8,8 @@ import type { MutateComplianceAddressPolicyUseCase } from '../ports/inbound/muta
 describe('SecureMutateComplianceAddressPolicyService', () => {
   const originalSecret = process.env.COMPLIANCE_POLICY_HMAC_SECRET;
   let mutate: jest.Mocked<MutateComplianceAddressPolicyUseCase>;
-  let idempotency: jest.Mocked<ComplianceIdempotencyPort>;
+  let idempotency: ComplianceIdempotencyPort;
+  let executeOnceMock: jest.Mock;
   let mutationHistory: jest.Mocked<CompliancePolicyMutationHistoryPort>;
   let service: SecureMutateComplianceAddressPolicyService;
 
@@ -17,15 +18,20 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
     mutate = {
       execute: jest.fn(),
     };
-    idempotency = {
-      executeOnce: jest.fn(async ({ action }) => ({
-        result: await action(),
+    executeOnceMock = jest.fn(
+      async (input: { action: () => Promise<unknown> }) => ({
+        result: await input.action(),
         replayed: false,
-      })),
+      }),
+    );
+    idempotency = {
+      executeOnce:
+        executeOnceMock as unknown as ComplianceIdempotencyPort['executeOnce'],
     };
     mutationHistory = {
       append: jest.fn(),
       list: jest.fn(),
+      findByIdempotencyKey: jest.fn(),
     };
     service = new SecureMutateComplianceAddressPolicyService(
       mutate,
@@ -81,7 +87,7 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
       signature,
     });
 
-    expect(idempotency.executeOnce).toHaveBeenCalledTimes(1);
+    expect(executeOnceMock).toHaveBeenCalledTimes(1);
     expect(mutate.execute).toHaveBeenCalledTimes(1);
     expect(mutate.execute).toHaveBeenCalledWith({
       address: '0x1234567890abcdef1234567890abcdef12345678',
@@ -175,7 +181,7 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
       signature,
     });
 
-    expect(idempotency.executeOnce).not.toHaveBeenCalled();
+    expect(executeOnceMock).not.toHaveBeenCalled();
     expect(mutate.execute).toHaveBeenCalledTimes(1);
     expect(result.replayed).toBe(false);
     expect(result.idempotencyKey).toBe('');

@@ -59,6 +59,23 @@ variable "service_port" {
   default     = 3000
 }
 
+variable "grpc_service_port" {
+  description = "Backend dev gRPC service port."
+  type        = number
+  default     = 50051
+}
+
+variable "grpc_ingress_path" {
+  description = "Ingress path prefix routed to the backend gRPC service."
+  type        = string
+  default     = "/compliance.ComplianceService"
+
+  validation {
+    condition     = startswith(var.grpc_ingress_path, "/")
+    error_message = "grpc_ingress_path must start with '/'."
+  }
+}
+
 variable "data_services_namespace" {
   description = "Namespace where Postgres and Valkey services run."
   type        = string

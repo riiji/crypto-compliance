@@ -103,6 +103,14 @@ describe('CheckAddressComplianceService', () => {
       assessmentSource: 'provider',
       retrievalSource: 'provider',
       isHighRisk: false,
+      providerResponsePayload: {
+        address: baseInput.address.toLowerCase(),
+        network: baseInput.network,
+        status: 'ready',
+        risk_score: 0.3,
+        signals: null,
+        checked_at: '2025-01-01T00:00:00.000Z',
+      },
     };
 
     cache.get.mockResolvedValue(cached);
@@ -136,6 +144,14 @@ describe('CheckAddressComplianceService', () => {
       assessmentSource: 'provider',
       retrievalSource: 'provider',
       isHighRisk: true,
+      providerResponsePayload: {
+        address: baseInput.address.toLowerCase(),
+        network: baseInput.network,
+        status: 'ready',
+        risk_score: 0.75,
+        signals: [{ category: 'stolen_coins', score: 0.3 }],
+        checked_at: '2025-01-01T00:00:00.000Z',
+      },
     };
     provider.checkAddress.mockResolvedValue(providerResult);
 

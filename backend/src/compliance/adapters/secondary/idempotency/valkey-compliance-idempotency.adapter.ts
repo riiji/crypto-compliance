@@ -55,13 +55,12 @@ export class ValkeyComplianceIdempotencyAdapter
   async executeOnce<T>(input: {
     key: string;
     requestHash: string;
-    ttlSeconds: number;
     action: () => Promise<T>;
   }): Promise<IdempotencyExecutionResult<T>> {
     const client = await this.getClient();
     const key = this.toKey(input.key);
     const requestHash = input.requestHash.trim();
-    const ttlSeconds = this.safeTtlSeconds(input.ttlSeconds);
+    const ttlSeconds = 86400;
 
     if (await this.tryCreateInProgress(client, key, requestHash, ttlSeconds)) {
       return this.executeAsOwner(client, key, requestHash, ttlSeconds, input);
@@ -121,7 +120,6 @@ export class ValkeyComplianceIdempotencyAdapter
     input: {
       key: string;
       requestHash: string;
-      ttlSeconds: number;
       action: () => Promise<T>;
     },
   ): Promise<IdempotencyExecutionResult<T>> {
@@ -295,14 +293,6 @@ export class ValkeyComplianceIdempotencyAdapter
     throw new ConflictException(
       'Idempotency key has already been used for another request',
     );
-  }
-
-  private safeTtlSeconds(raw: number): number {
-    if (Number.isInteger(raw) && raw > 0) {
-      return raw;
-    }
-
-    return 86400;
   }
 
   private parsePositiveInteger(

@@ -2,11 +2,16 @@
 
 This harness measures current throughput for `compliance.ComplianceService.CheckAddressCompliance` and emits stage-by-stage reports.
 
+Recommended use:
+
+- Run `ghz` from a separate pod or machine, not from the backend host.
+- Use capped `RPS` and a smaller connection pool so the client does not become the bottleneck first.
+
 ## What it runs
 
 - Connectivity check with `grpcurl` (`list`)
 - Warm-up hot cache stage
-- Mixed hot/cold stages in parallel (90/10 split by default), unlimited client RPS, durations: `10s 30s 60s`
+- Mixed hot/cold stages in parallel (90/10 split by default), capped client RPS, durations: `10s 30s 60s`
 - Lock contention burst on a single uncached address
 - Summary generation with throughput/latency/error metrics
 
@@ -23,26 +28,61 @@ This harness measures current throughput for `compliance.ComplianceService.Check
 
 ```bash
 mkdir -p /tmp/loadtest-tools ~/.local/share/pnpm
-curl -fsSL -o /tmp/loadtest-tools/ghz-linux-arm64.tar.gz https://github.com/bojand/ghz/releases/download/v0.121.0/ghz-linux-arm64.tar.gz
-curl -fsSL -o /tmp/loadtest-tools/grpcurl_1.9.3_linux_arm64.tar.gz https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_arm64.tar.gz
-tar -xzf /tmp/loadtest-tools/ghz-linux-arm64.tar.gz -C /tmp/loadtest-tools ghz
-tar -xzf /tmp/loadtest-tools/grpcurl_1.9.3_linux_arm64.tar.gz -C /tmp/loadtest-tools grpcurl
+ARCH="$(uname -m)"
+case "${ARCH}" in
+  x86_64|amd64)
+    GHZ_ASSET="ghz-linux-x86_64.tar.gz"
+    GRPCURL_ASSET="grpcurl_1.9.3_linux_x86_64.tar.gz"
+    ;;
+  aarch64|arm64)
+    GHZ_ASSET="ghz-linux-arm64.tar.gz"
+    GRPCURL_ASSET="grpcurl_1.9.3_linux_arm64.tar.gz"
+    ;;
+  *)
+    echo "Unsupported architecture: ${ARCH}" >&2
+    exit 1
+    ;;
+esac
+curl -fsSL -o "/tmp/loadtest-tools/${GHZ_ASSET}" "https://github.com/bojand/ghz/releases/download/v0.121.0/${GHZ_ASSET}"
+curl -fsSL -o "/tmp/loadtest-tools/${GRPCURL_ASSET}" "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/${GRPCURL_ASSET}"
+tar -xzf "/tmp/loadtest-tools/${GHZ_ASSET}" -C /tmp/loadtest-tools ghz
+tar -xzf "/tmp/loadtest-tools/${GRPCURL_ASSET}" -C /tmp/loadtest-tools grpcurl
 install -m 0755 /tmp/loadtest-tools/ghz ~/.local/share/pnpm/ghz
 install -m 0755 /tmp/loadtest-tools/grpcurl ~/.local/share/pnpm/grpcurl
 ghz --version
 grpcurl -version
 ```
 
-## Port-forward gRPC
+## Recommended: run from a separate pod
 
-Current `backend/terraform.dev` service exposes port `3000`; for gRPC stress tests use pod port-forward to `5000`.
+`backend/terraform.dev` does not expose the gRPC port on a Service. The remote helper discovers the backend pod IP and runs `ghz` from a separate pod in the same namespace, targeting gRPC on port `50051`.
+
+From `backend/`:
+
+```bash
+pnpm run loadtest:grpc:remote
+```
+
+Important env vars for the remote helper:
+
+```bash
+NAMESPACE=default
+BACKEND_POD_SELECTOR=app=crypto-compliance-backend-dev
+GRPC_PORT=50051
+RUNNER_IMAGE=node:24.14.0
+KEEP_RUNNER=0
+```
+
+## Fallback: local port-forward smoke test
+
+Use this only for quick checks. It shares CPU with the backend and `kubectl port-forward` is not a stable throughput path.
 
 ```bash
 POD=$(kubectl -n default get pods -l app=crypto-compliance-backend-dev -o jsonpath='{.items[0].metadata.name}')
-kubectl -n default port-forward "$POD" 5000:5000 3000:3000
+kubectl -n default port-forward "$POD" 50051:50051 3000:3000
 ```
 
-## Run
+Then run:
 
 From `backend/`:
 
@@ -66,13 +106,21 @@ Important files:
 You can override any of these env vars:
 
 ```bash
-TARGET=localhost:5000
+TARGET=localhost:50051
 STAGES="10 30 60"
-UNLIMITED_TOTAL_CONCURRENCY=120
+TOTAL_CONCURRENCY=120
 COOLDOWN_SECONDS=60
 HOT_RATIO_PERCENT=90
 WARMUP_DURATION_SECONDS=60
 WARMUP_CONCURRENCY=30
+WARMUP_RPS=150
+STAGE_TOTAL_RPS=600
+CONTENTION_RPS=300
+MAX_CONNECTIONS_PER_STREAM=12
+WARMUP_CONNECTIONS=12
+HOT_CONNECTIONS=12
+COLD_CONNECTIONS=12
+CONTENTION_CONNECTIONS=12
 CONTENTION_CONCURRENCY=300
 CONTENTION_DURATION_SECONDS=60
 ```
@@ -80,7 +128,7 @@ CONTENTION_DURATION_SECONDS=60
 Example:
 
 ```bash
-TARGET=localhost:5000 STAGES="10 30 60" UNLIMITED_TOTAL_CONCURRENCY=180 pnpm run loadtest:grpc
+TARGET=localhost:50051 STAGES="10 30 60" TOTAL_CONCURRENCY=180 STAGE_TOTAL_RPS=900 MAX_CONNECTIONS_PER_STREAM=16 pnpm run loadtest:grpc
 ```
 
 ## Re-render summary
@@ -99,10 +147,12 @@ node ./loadtest/parse-ghz-report.mjs --results-dir ./loadtest/results/<RUN_ID>
 
 ```bash
 DRY_RUN=1 pnpm run loadtest:grpc
+DRY_RUN=1 pnpm run loadtest:grpc:remote
 ```
 
 ## Notes
 
 - Hot and cold streams are run as separate concurrent ghz processes.
 - Reported stage percentiles are conservative (`max(hot, cold)`), while achieved RPS and error rate are combined.
-- Optional infra follow-up: expose explicit gRPC service port in `backend/terraform.dev` if you want service-level port-forwarding instead of pod-level port-forwarding.
+- The parser counts object-shaped `errorDistribution` payloads from ghz, so summaries now reflect transport failures correctly.
+- Optional infra follow-up: expose explicit gRPC service port in `backend/terraform.dev` if you want service-level routing instead of targeting backend pod IPs.

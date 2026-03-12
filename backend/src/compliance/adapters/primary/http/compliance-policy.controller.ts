@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -24,32 +23,16 @@ import {
 } from '../../../application/ports/inbound/list-compliance-policy-mutation-history.use-case';
 import type { ComplianceAddressPolicy } from '../../../application/ports/outbound/compliance-address-policy.port';
 import type { CompliancePolicyMutationAction } from '../../../application/ports/inbound/mutate-compliance-address-policy.use-case';
-import type { CompliancePolicyMutationHistoryRecord } from '../../../application/ports/outbound/compliance-policy-mutation-history.port';
-
-interface CompliancePolicyMutationBodyDto {
-  address: string;
-  network: string;
-  confirmPolicySwitch: boolean;
-}
-
-interface CompliancePolicyHistoryQueryDto {
-  limit?: string;
-}
-
-interface CompliancePolicyEntryDto {
-  address: string;
-  network: string;
-}
-
-interface CompliancePolicyMutationResponseDto {
-  address: string;
-  network: string;
-  policy: ComplianceAddressPolicy;
-  action: CompliancePolicyMutationAction;
-  changed: boolean;
-  idempotencyKey: string;
-  replayed: boolean;
-}
+import {
+  type CompliancePolicyEntryDto,
+  type CompliancePolicyHistoryQueryDto,
+  type CompliancePolicyMutationHistoryRecord,
+  type CompliancePolicyMutationResponseDto,
+  maskAddress,
+  optionalHeader,
+  requireHeader,
+  requireMutationBody,
+} from './compliance-policy-http.shared';
 
 @Controller('compliance/policies')
 export class CompliancePolicyController {
@@ -146,14 +129,14 @@ export class CompliancePolicyController {
     policy: ComplianceAddressPolicy,
     action: CompliancePolicyMutationAction,
   ): Promise<CompliancePolicyMutationResponseDto> {
-    const validatedBody = this.requireMutationBody(body);
-    const idempotencyKey = this.optionalHeader(headers, 'x-idempotency-key');
-    const timestamp = this.requireHeader(headers, 'x-timestamp');
-    const signature = this.requireHeader(headers, 'x-signature');
-    const requestedBy = this.optionalHeader(headers, 'x-user-id');
+    const validatedBody = requireMutationBody(body);
+    const idempotencyKey = optionalHeader(headers, 'x-idempotency-key');
+    const timestamp = requireHeader(headers, 'x-timestamp');
+    const signature = requireHeader(headers, 'x-signature');
+    const requestedBy = optionalHeader(headers, 'x-user-id');
 
     this.logger.log(
-      `${action.toUpperCase()} ${policy} address=${this.maskAddress(validatedBody.address)} network=${validatedBody.network}`,
+      `${action.toUpperCase()} ${policy} address=${maskAddress(validatedBody.address)} network=${validatedBody.network}`,
     );
 
     const result =
@@ -173,73 +156,5 @@ export class CompliancePolicyController {
       `${action.toUpperCase()} ${policy} completed changed=${result.changed} replayed=${result.replayed}`,
     );
     return result;
-  }
-
-  private requireHeader(
-    headers: Record<string, string | string[] | undefined>,
-    name: string,
-  ): string {
-    const raw = headers[name.toLowerCase()];
-    const first = Array.isArray(raw) ? raw[0] : raw;
-    if (!first || !first.trim()) {
-      throw new BadRequestException(`${name} header is required`);
-    }
-
-    return first;
-  }
-
-  private optionalHeader(
-    headers: Record<string, string | string[] | undefined>,
-    name: string,
-  ): string | null {
-    const raw = headers[name.toLowerCase()];
-    const first = Array.isArray(raw) ? raw[0] : raw;
-    if (!first || !first.trim()) {
-      return null;
-    }
-
-    return first.trim();
-  }
-
-  private requireMutationBody(body: unknown): CompliancePolicyMutationBodyDto {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new BadRequestException('Request body must be a JSON object');
-    }
-
-    const record = body as Record<string, unknown>;
-    const address =
-      typeof record.address === 'string' ? record.address.trim() : '';
-    const network =
-      typeof record.network === 'string' ? record.network.trim() : '';
-
-    if (!address) {
-      throw new BadRequestException('Address must not be empty');
-    }
-
-    if (!network) {
-      throw new BadRequestException('Network must not be empty');
-    }
-
-    const confirmPolicySwitch =
-      record.confirmPolicySwitch === undefined
-        ? false
-        : typeof record.confirmPolicySwitch === 'boolean'
-          ? record.confirmPolicySwitch
-          : (() => {
-              throw new BadRequestException(
-                'confirmPolicySwitch must be a boolean when provided',
-              );
-            })();
-
-    return { address, network, confirmPolicySwitch };
-  }
-
-  private maskAddress(address: string): string {
-    const trimmed = address.trim();
-    if (trimmed.length <= 10) {
-      return trimmed;
-    }
-
-    return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
   }
 }

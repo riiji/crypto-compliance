@@ -13,6 +13,5 @@ service_port   = 80
 service_type   = "ClusterIP"
 
 env = {
-  BACKEND_API_BASE_URL          = "http://crypto-compliance-backend-svc.crypto-compliance.svc.cluster.local:80"
-  COMPLIANCE_POLICY_HMAC_SECRET = "change-me"
+  BACKEND_API_BASE_URL = "http://crypto-compliance-backend-svc.crypto-compliance.svc.cluster.local:80"
 }

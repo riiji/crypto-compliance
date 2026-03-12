@@ -28,6 +28,11 @@ describe('ComplianceController', () => {
       assessmentSource: 'provider',
       retrievalSource: 'provider',
       isHighRisk: true,
+      providerResponsePayload: {
+        address: '0xabc',
+        network: 'eip155:1',
+        status: 'ready',
+      },
     });
 
     const response = await controller.checkAddressCompliance({
@@ -65,6 +70,7 @@ describe('ComplianceController', () => {
       assessmentSource: 'whitelist',
       retrievalSource: 'cache',
       isHighRisk: false,
+      providerResponsePayload: null,
     });
 
     const response = await controller.checkAddressCompliance({

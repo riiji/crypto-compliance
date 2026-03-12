@@ -28,10 +28,14 @@ terraform apply
 Ingress settings are fixed in the module:
 - class: `traefik`
 - host: unset (hostless rule)
-- path: `/` with `Prefix`
+- HTTP path: `/` with `Prefix`
+- gRPC path: `/compliance.ComplianceService` with `Prefix`
+- gRPC backend service uses Traefik `h2c`
 
 Apply and check output:
 
 ```bash
 terraform output ingress_name
+terraform output grpc_service_name
+terraform output grpc_ingress_path
 ```

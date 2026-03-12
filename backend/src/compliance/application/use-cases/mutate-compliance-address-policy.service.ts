@@ -95,7 +95,8 @@ export class MutateComplianceAddressPolicyService implements MutateComplianceAdd
       network: input.network,
       policy: input.policy,
     } as const;
-    const oppositePolicy = input.policy === 'blacklist' ? 'whitelist' : 'blacklist';
+    const oppositePolicy =
+      input.policy === 'blacklist' ? 'whitelist' : 'blacklist';
     const oppositeEntry = {
       address: input.address,
       network: input.network,

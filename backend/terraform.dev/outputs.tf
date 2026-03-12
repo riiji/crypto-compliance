@@ -14,6 +14,18 @@ output "service_port" {
   value = module.service.service_port
 }
 
+output "grpc_service_name" {
+  value = module.service.grpc_service_name
+}
+
+output "grpc_service_port" {
+  value = module.service.grpc_service_port
+}
+
+output "grpc_ingress_path" {
+  value = module.service.grpc_ingress_path
+}
+
 output "ingress_name" {
   value = module.service.ingress_name
 }

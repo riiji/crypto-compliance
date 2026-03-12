@@ -85,6 +85,13 @@ export class ComplianceCheckHistoryOrmEntity {
   })
   isHighRisk!: boolean;
 
+  @Column({
+    name: 'provider_response_payload',
+    type: 'jsonb',
+    nullable: true,
+  })
+  providerResponsePayload!: object | null;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamptz',

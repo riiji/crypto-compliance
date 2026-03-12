@@ -106,7 +106,7 @@ describe('SuwardComplianceProviderAdapter', () => {
   it('allows non-eip155 addresses and sends normalized request values', async () => {
     const adapter = new SuwardComplianceProviderAdapter();
 
-    await adapter.checkAddress({
+    const result = await adapter.checkAddress({
       address: '  cosmos1abcdefghijklmnopqrstuvwxzy0123456789  ',
       network: ' cosmos:cosmoshub-4 ',
     });
@@ -126,6 +126,19 @@ describe('SuwardComplianceProviderAdapter', () => {
     expect(parsedBody).toEqual({
       address: 'cosmos1abcdefghijklmnopqrstuvwxzy0123456789',
       network: 'cosmos:cosmoshub-4',
+    });
+    expect(result.providerResponsePayload).toEqual({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      status: 'ready',
+      risk_score: 0.75,
+      signals: [
+        {
+          category: 'stolen_coins',
+          score: 0.3,
+        },
+      ],
+      checked_at: '2025-01-15T12:00:00Z',
     });
   });
 

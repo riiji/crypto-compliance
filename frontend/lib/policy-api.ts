@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 export type CompliancePolicy = 'blacklist' | 'whitelist';
 export type CompliancePolicyAction = 'add' | 'remove';
@@ -51,11 +51,6 @@ function backendBaseUrl(): string {
   return configured.endsWith('/') ? configured.slice(0, -1) : configured;
 }
 
-function normalizeAddressForSignature(address: string, network: string): string {
-  const [namespace] = network.split(':', 2);
-  return namespace === 'eip155' ? address.toLowerCase() : address;
-}
-
 function normalizeNetwork(value: string): string {
   return value.trim();
 }
@@ -92,18 +87,6 @@ async function throwIfNotOk(response: Response): Promise<void> {
       : `Upstream API request failed with ${response.status}`;
 
   throw new UpstreamApiError(message, response.status, body);
-}
-
-function requireSecret(): string {
-  const secret = process.env.COMPLIANCE_POLICY_HMAC_SECRET?.trim();
-  if (!secret) {
-    throw new UpstreamApiError(
-      'COMPLIANCE_POLICY_HMAC_SECRET is not configured',
-      500,
-    );
-  }
-
-  return secret;
 }
 
 export async function fetchPolicyList(
@@ -151,37 +134,19 @@ export async function mutatePolicy(input: {
   idempotencyKey?: string;
   confirmPolicySwitch?: boolean;
 }): Promise<CompliancePolicyMutationResponse> {
-  const secret = requireSecret();
   const network = normalizeNetwork(input.network);
   const address = normalizeAddress(input.address);
-  const normalizedAddress = normalizeAddressForSignature(address, network);
   const confirmPolicySwitch = input.confirmPolicySwitch ?? false;
   const idempotencyKey = input.idempotencyKey ?? randomUUID();
-  const timestamp = `${Math.floor(Date.now() / 1000)}`;
-  const signaturePayload = [
-    timestamp,
-    idempotencyKey,
-    input.action,
-    input.policy,
-    network,
-    normalizedAddress,
-    confirmPolicySwitch ? '1' : '0',
-  ].join('\n');
-  const signature = createHmac('sha256', secret)
-    .update(signaturePayload)
-    .digest('hex');
-
   const method = input.action === 'add' ? 'POST' : 'DELETE';
   const response = await fetch(
-    `${backendBaseUrl()}/compliance/policies/${input.policy}`,
+    `${backendBaseUrl()}/compliance/admin/policies/${input.policy}`,
     {
       method,
       cache: 'no-store',
       headers: {
         'content-type': 'application/json',
         'x-idempotency-key': idempotencyKey,
-        'x-signature': signature,
-        'x-timestamp': timestamp,
       },
       body: JSON.stringify({
         address,

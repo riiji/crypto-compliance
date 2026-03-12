@@ -136,6 +136,7 @@ export class CheckAddressComplianceService implements CheckAddressComplianceUseC
       assessmentSource: policy,
       retrievalSource: 'policy',
       isHighRisk,
+      providerResponsePayload: null,
     };
   }
 

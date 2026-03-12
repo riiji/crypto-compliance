@@ -7,6 +7,7 @@ import {
 import type {
   ComplianceCheckResult,
   ComplianceCheckStatus,
+  ComplianceProviderResponsePayload,
   ComplianceSignal,
 } from '../../../domain/compliance-check-result.entity';
 import { isHighRiskFromProvider } from '../../../domain/risk-evaluation';
@@ -105,14 +106,18 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
       );
     }
 
-    const response = await this.requestComplianceCheck(normalizedInput);
-    return this.toDomain(response);
+    const { response, rawPayload } =
+      await this.requestComplianceCheck(normalizedInput);
+    return this.toDomain(response, rawPayload);
   }
 
   private async requestComplianceCheck(input: {
     address: string;
     network: string;
-  }): Promise<SuwardComplianceResponse> {
+  }): Promise<{
+    response: SuwardComplianceResponse;
+    rawPayload: ComplianceProviderResponsePayload;
+  }> {
     let response: Response;
     try {
       response = await fetch(this.endpoint, {
@@ -153,7 +158,10 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
     return this.parseProviderResponse(payload);
   }
 
-  private parseProviderResponse(payload: unknown): SuwardComplianceResponse {
+  private parseProviderResponse(payload: unknown): {
+    response: SuwardComplianceResponse;
+    rawPayload: ComplianceProviderResponsePayload;
+  } {
     const parsed = suwardComplianceResponseSchema.safeParse(payload);
     if (!parsed.success) {
       throw new ComplianceProviderResponseFormatError(
@@ -164,10 +172,16 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
       );
     }
 
-    return parsed.data;
+    return {
+      response: parsed.data,
+      rawPayload: this.toRawPayload(payload),
+    };
   }
 
-  private toDomain(response: SuwardComplianceResponse): ComplianceCheckResult {
+  private toDomain(
+    response: SuwardComplianceResponse,
+    rawPayload: ComplianceProviderResponsePayload,
+  ): ComplianceCheckResult {
     let checkedAt: Date | null = null;
     if (response.checked_at !== null) {
       checkedAt = new Date(response.checked_at);
@@ -197,6 +211,7 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
         riskScore: response.risk_score,
         signals,
       }),
+      providerResponsePayload: rawPayload,
     };
   }
 
@@ -229,6 +244,20 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
     }
 
     return firstIssue.message;
+  }
+
+  private toRawPayload(payload: unknown): ComplianceProviderResponsePayload {
+    if (
+      typeof payload !== 'object' ||
+      payload === null ||
+      Array.isArray(payload)
+    ) {
+      throw new ComplianceProviderResponseFormatError(
+        'Compliance provider response must be a JSON object',
+      );
+    }
+
+    return payload as ComplianceProviderResponsePayload;
   }
 }
 

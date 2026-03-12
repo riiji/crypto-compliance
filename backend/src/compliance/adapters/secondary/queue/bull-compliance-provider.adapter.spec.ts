@@ -30,6 +30,11 @@ describe('BullComplianceProviderAdapter', () => {
       assessmentSource: 'provider',
       retrievalSource: 'provider',
       isHighRisk: false,
+      providerResponsePayload: {
+        address: '0x123',
+        network: 'eip155:1',
+        status: 'ready',
+      },
     });
     const add = jest.fn().mockResolvedValue({
       waitUntilFinished,
@@ -66,6 +71,11 @@ describe('BullComplianceProviderAdapter', () => {
     );
     expect(waitUntilFinished).toHaveBeenCalledTimes(1);
     expect(result.checkedAt).toEqual(new Date('2026-03-11T00:00:00.000Z'));
+    expect(result.providerResponsePayload).toEqual({
+      address: '0x123',
+      network: 'eip155:1',
+      status: 'ready',
+    });
   });
 
   it('throws ComplianceProviderRequestError when queued job fails', async () => {

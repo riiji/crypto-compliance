@@ -11,7 +11,6 @@ export interface ComplianceIdempotencyPort {
   executeOnce<T>(input: {
     key: string;
     requestHash: string;
-    ttlSeconds: number;
     action: () => Promise<T>;
   }): Promise<IdempotencyExecutionResult<T>>;
 }

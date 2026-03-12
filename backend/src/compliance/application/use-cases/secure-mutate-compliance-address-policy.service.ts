@@ -72,11 +72,6 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
     20,
   );
 
-  private readonly idempotencyTtlSeconds = this.parsePositiveInteger(
-    process.env.COMPLIANCE_IDEMPOTENCY_TTL_SECONDS,
-    86400,
-  );
-
   constructor(
     @Inject(MUTATE_COMPLIANCE_ADDRESS_POLICY_USE_CASE)
     private readonly mutateComplianceAddressPolicyUseCase: MutateComplianceAddressPolicyUseCase,
@@ -112,6 +107,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
       await this.compliancePolicyMutationHistory.append({
         ...mutation,
         idempotencyKey: validated.idempotencyKey ?? '',
+        requestHash: validated.idempotencyKey ? requestHash : null,
         requestedBy: validated.requestedBy ?? null,
         createdAt: new Date(),
       });
@@ -123,7 +119,6 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
       ? await this.complianceIdempotency.executeOnce({
           key: validated.idempotencyKey,
           requestHash,
-          ttlSeconds: this.idempotencyTtlSeconds,
           action: runMutation,
         })
       : {

@@ -16,8 +16,20 @@ export interface CompliancePolicyMutationHistoryRecord {
   createdAt: Date;
 }
 
+export interface CompliancePolicyMutationHistoryAppendRecord extends CompliancePolicyMutationHistoryRecord {
+  requestHash?: string | null;
+}
+
+export interface CompliancePolicyMutationHistoryIdempotencyRecord extends CompliancePolicyMutationHistoryRecord {
+  requestHash: string;
+}
+
 export interface CompliancePolicyMutationHistoryPort {
-  append(record: CompliancePolicyMutationHistoryRecord): Promise<void>;
+  append(record: CompliancePolicyMutationHistoryAppendRecord): Promise<void>;
 
   list(limit: number): Promise<CompliancePolicyMutationHistoryRecord[]>;
+
+  findByIdempotencyKey(
+    idempotencyKey: string,
+  ): Promise<CompliancePolicyMutationHistoryIdempotencyRecord | null>;
 }

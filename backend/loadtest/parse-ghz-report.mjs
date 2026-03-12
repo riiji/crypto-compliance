@@ -147,6 +147,31 @@ function extractErrorMap(report) {
     }
   }
 
+  if (
+    map.size === 0 &&
+    report.errorDistribution &&
+    typeof report.errorDistribution === 'object' &&
+    !Array.isArray(report.errorDistribution)
+  ) {
+    for (const [message, count] of Object.entries(report.errorDistribution)) {
+      add(message, count);
+    }
+  }
+
+  if (
+    map.size === 0 &&
+    report.statusCodeDistribution &&
+    typeof report.statusCodeDistribution === 'object' &&
+    !Array.isArray(report.statusCodeDistribution)
+  ) {
+    for (const [statusCode, count] of Object.entries(report.statusCodeDistribution)) {
+      if (statusCode === 'OK') {
+        continue;
+      }
+      add(`grpc status: ${statusCode}`, count);
+    }
+  }
+
   if (map.size === 0 && Array.isArray(report.details)) {
     for (const detail of report.details) {
       if (!detail) {
@@ -159,6 +184,64 @@ function extractErrorMap(report) {
   }
 
   return map;
+}
+
+async function readRunConfig(resultsDir) {
+  const runConfigPath = path.join(resultsDir, 'run-config.env');
+
+  try {
+    const raw = await fs.readFile(runConfigPath, 'utf8');
+    const config = {};
+
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      const delimiterIndex = trimmed.indexOf('=');
+      if (delimiterIndex <= 0) {
+        continue;
+      }
+
+      const key = trimmed.slice(0, delimiterIndex).trim();
+      const value = trimmed.slice(delimiterIndex + 1).trim();
+      if (key) {
+        config[key] = value;
+      }
+    }
+
+    return config;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function describeRps(value) {
+  const numericValue = toNumber(value, 0);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 'unlimited';
+  }
+  return `${numericValue} RPS`;
+}
+
+function describeLoadMode(runConfig) {
+  if (!runConfig) {
+    return 'client RPS mode unknown';
+  }
+
+  const warmupRps = toNumber(runConfig.WARMUP_RPS, 0);
+  const stageTotalRps = toNumber(runConfig.STAGE_TOTAL_RPS, 0);
+  const contentionRps = toNumber(runConfig.CONTENTION_RPS, 0);
+
+  if (warmupRps <= 0 && stageTotalRps <= 0 && contentionRps <= 0) {
+    return 'unlimited client RPS (no --rps cap)';
+  }
+
+  return `capped client RPS (warmup=${describeRps(runConfig.WARMUP_RPS)}, stage total=${describeRps(runConfig.STAGE_TOTAL_RPS)}, contention=${describeRps(runConfig.CONTENTION_RPS)})`;
 }
 
 function mergeErrorMaps(target, source) {
@@ -294,6 +377,7 @@ function stageNumberFromFile(fileName) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const entries = await fs.readdir(args.resultsDir, { withFileTypes: true });
+  const runConfig = await readRunConfig(args.resultsDir);
 
   const stageFiles = new Map();
   let warmupFile = null;
@@ -384,7 +468,7 @@ async function main() {
   lines.push('# CheckAddressCompliance gRPC Stress Test Summary');
   lines.push('');
   lines.push(`- Results directory: \`${args.resultsDir}\``);
-  lines.push('- Mode: unlimited client RPS (no --rps cap); stage values represent duration in seconds');
+  lines.push(`- Mode: ${describeLoadMode(runConfig)}; stage values represent duration in seconds`);
   lines.push(`- Peak achieved throughput: ${peakStage ? `${formatRps(peakStage.aggregate.achievedRps)} RPS at ${peakStage.stageDurationSeconds}s stage` : 'N/A'}`);
   if (skippedStages.length > 0) {
     lines.push(
@@ -448,6 +532,20 @@ async function main() {
           achievedRps: peakStage.aggregate.achievedRps,
         }
       : null,
+    mode: describeLoadMode(runConfig),
+    runConfig: runConfig
+      ? {
+          target: runConfig.TARGET ?? null,
+          totalConcurrency: toNumber(
+            runConfig.TOTAL_CONCURRENCY ?? runConfig.UNLIMITED_TOTAL_CONCURRENCY,
+            0,
+          ),
+          warmupRps: toNumber(runConfig.WARMUP_RPS, 0),
+          stageTotalRps: toNumber(runConfig.STAGE_TOTAL_RPS, 0),
+          contentionRps: toNumber(runConfig.CONTENTION_RPS, 0),
+          maxConnectionsPerStream: toNumber(runConfig.MAX_CONNECTIONS_PER_STREAM, 0),
+        }
+      : null,
     skippedStages,
     stages: stages.map((stage) => ({
       stageDurationSeconds: stage.stageDurationSeconds,
@@ -455,6 +553,10 @@ async function main() {
       p50Ms: stage.aggregate.p50Ms,
       p95Ms: stage.aggregate.p95Ms,
       p99Ms: stage.aggregate.p99Ms,
+      errorCount: [...stage.aggregate.errorMap.values()].reduce(
+        (sum, value) => sum + value,
+        0,
+      ),
       errorRatePct: stage.aggregate.errorRatePct,
       topErrors: stage.topErrors,
     })),
@@ -462,6 +564,7 @@ async function main() {
       ? {
           count: warmup.count,
           achievedRps: warmup.achievedRps,
+          errorCount: warmup.errorCount,
           errorRatePct: warmup.errorRatePct,
         }
       : null,
@@ -470,6 +573,7 @@ async function main() {
           count: contention.count,
           achievedRps: contention.achievedRps,
           p95Ms: contention.p95Ms,
+          errorCount: contention.errorCount,
           errorRatePct: contention.errorRatePct,
           topErrors: topErrors(contention.errorMap, 5),
         }

@@ -8,8 +8,8 @@ Next.js app for managing compliance blacklist/whitelist entries.
 - Add and remove addresses in both lists
 - View policy mutation history
 
-Mutating endpoints are signed server-side in Next API routes.
-HMAC secret is never sent to the browser.
+Frontend mutations go through unsigned admin policy endpoints.
+Signed HMAC endpoints remain on the backend for service-to-service callers only.
 
 ## Requirements
 
@@ -19,7 +19,6 @@ HMAC secret is never sent to the browser.
 ## Required Environment Variables
 
 - `BACKEND_API_BASE_URL` (default: `http://localhost:3000`)
-- `COMPLIANCE_POLICY_HMAC_SECRET`
 
 ## Local Run
 

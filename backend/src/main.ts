@@ -1,13 +1,13 @@
 import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
+import { type MicroserviceOptions } from '@nestjs/microservices';
 import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { createGrpcMicroserviceOptions } from './grpc.config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -30,20 +30,7 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, swaggerDocumentFactory);
   }
 
-  const grpcPort = Number.parseInt(
-    process.env.COMPLIANCE_GRPC_PORT ?? '50051',
-    10,
-  );
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.GRPC,
-    options: {
-      url: `0.0.0.0:${
-        Number.isInteger(grpcPort) && grpcPort > 0 ? grpcPort : 50051
-      }`,
-      package: ['compliance'],
-      protoPath: [join(__dirname, 'compliance/compliance.proto')],
-    },
-  });
+  app.connectMicroservice<MicroserviceOptions>(createGrpcMicroserviceOptions());
 
   await app.startAllMicroservices();
 

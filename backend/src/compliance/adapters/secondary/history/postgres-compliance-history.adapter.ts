@@ -26,6 +26,7 @@ export class PostgresComplianceHistoryAdapter implements ComplianceHistoryPort {
       assessmentSource: result.assessmentSource,
       retrievalSource: result.retrievalSource,
       isHighRisk: result.isHighRisk,
+      providerResponsePayload: result.providerResponsePayload,
     });
   }
 }
