@@ -29,6 +29,7 @@ import type { CompliancePolicyMutationHistoryRecord } from '../../../application
 interface CompliancePolicyMutationBodyDto {
   address: string;
   network: string;
+  confirmPolicySwitch: boolean;
 }
 
 interface CompliancePolicyHistoryQueryDto {
@@ -161,6 +162,7 @@ export class CompliancePolicyController {
         network: validatedBody.network,
         policy,
         action,
+        confirmPolicySwitch: validatedBody.confirmPolicySwitch,
         idempotencyKey,
         timestamp,
         signature,
@@ -218,7 +220,18 @@ export class CompliancePolicyController {
       throw new BadRequestException('Network must not be empty');
     }
 
-    return { address, network };
+    const confirmPolicySwitch =
+      record.confirmPolicySwitch === undefined
+        ? false
+        : typeof record.confirmPolicySwitch === 'boolean'
+          ? record.confirmPolicySwitch
+          : (() => {
+              throw new BadRequestException(
+                'confirmPolicySwitch must be a boolean when provided',
+              );
+            })();
+
+    return { address, network, confirmPolicySwitch };
   }
 
   private maskAddress(address: string): string {

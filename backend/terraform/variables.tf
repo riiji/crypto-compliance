@@ -9,24 +9,15 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "gke_cluster_name" {
-  description = "GKE cluster name where backend resources are deployed."
+variable "root_state_bucket" {
+  description = "GCS bucket containing root Terraform remote state."
   type        = string
 }
 
-variable "gke_location" {
-  description = "GKE cluster location (zone or region)."
+variable "root_state_prefix" {
+  description = "Prefix path for root Terraform remote state."
   type        = string
-
-  validation {
-    condition = can(
-      regex(
-        "^[a-z]+-[a-z0-9]+[0-9](?:-[a-z])?$",
-        trimspace(var.gke_location),
-      ),
-    )
-    error_message = "gke_location must be a valid region (for example us-central1) or zone (for example us-central1-a)."
-  }
+  default     = "crypto-compliance/prod/root"
 }
 
 variable "namespace" {
@@ -100,6 +91,51 @@ variable "service_type" {
   }
 }
 
+variable "ingress_class_name" {
+  description = "IngressClass name (for example gce, nginx). Null uses controller default."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "ingress_host" {
+  description = "Optional host for ingress rule. Null creates a hostless rule."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "ingress_path" {
+  description = "Ingress path routed to backend service."
+  type        = string
+  default     = "/"
+
+  validation {
+    condition     = startswith(var.ingress_path, "/")
+    error_message = "ingress_path must start with '/'."
+  }
+}
+
+variable "ingress_path_type" {
+  description = "Ingress path type."
+  type        = string
+  default     = "Prefix"
+
+  validation {
+    condition = contains(
+      ["Prefix", "Exact", "ImplementationSpecific"],
+      var.ingress_path_type,
+    )
+    error_message = "ingress_path_type must be Prefix, Exact, or ImplementationSpecific."
+  }
+}
+
+variable "ingress_annotations" {
+  description = "Additional annotations for ingress."
+  type        = map(string)
+  default     = {}
+}
+
 variable "image_pull_policy" {
   description = "Kubernetes image pull policy for the application container."
   type        = string
@@ -126,60 +162,10 @@ variable "env" {
   default     = {}
 }
 
-variable "postgres_instance_name" {
-  description = "Cloud SQL PostgreSQL instance name."
-  type        = string
-}
-
-variable "postgres_port" {
-  description = "Postgres port used by backend."
-  type        = number
-  default     = 5432
-}
-
-variable "postgres_db" {
-  description = "Postgres database name used by backend."
-  type        = string
-  default     = "compliance"
-}
-
-variable "postgres_user" {
-  description = "Postgres user used by backend."
-  type        = string
-  default     = "compliance"
-}
-
 variable "postgres_password" {
   description = "Postgres password used by backend."
   type        = string
   sensitive   = true
-}
-
-variable "valkey_instance_id" {
-  description = "Memorystore for Valkey instance ID used by backend."
-  type        = string
-}
-
-variable "valkey_location" {
-  description = "Memorystore for Valkey location (region) used by backend."
-  type        = string
-  default     = "us-central1"
-
-  validation {
-    condition = can(
-      regex(
-        "^[a-z]+-[a-z0-9]+[0-9]$",
-        trimspace(var.valkey_location),
-      ),
-    )
-    error_message = "valkey_location must be a valid region (for example us-central1)."
-  }
-}
-
-variable "valkey_port_fallback" {
-  description = "Fallback Valkey port when endpoint metadata is unavailable."
-  type        = number
-  default     = 6379
 }
 
 variable "policy_hmac_secret" {

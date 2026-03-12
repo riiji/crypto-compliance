@@ -1,6 +1,10 @@
 namespace      = "default"
 app_name       = "crypto-compliance-backend-dev"
 host_repo_path = "/home/ubuntu/crypto-compliance/backend"
+image          = "node:24.14.0"
+# Example Artifact Registry image:
+# image = "us-central1-docker.pkg.dev/<project-id>/crypto-compliance/crypto-compliance-backend:latest"
+image_pull_policy = "IfNotPresent"
 service_type   = "ClusterIP"
 service_port   = 3000
 data_services_namespace = "default"

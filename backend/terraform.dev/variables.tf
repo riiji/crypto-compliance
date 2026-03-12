@@ -29,6 +29,24 @@ variable "host_repo_path" {
   default     = "/home/ubuntu/crypto-compliance/backend"
 }
 
+variable "ingress_annotations" {
+  description = "Additional annotations for backend dev ingress."
+  type        = map(string)
+  default     = {}
+}
+
+variable "image" {
+  description = "Container image for backend dev pod (for example node:24.14.0 or an Artifact Registry image)."
+  type        = string
+  default     = "node:24.14.0"
+}
+
+variable "image_pull_policy" {
+  description = "Kubernetes image pull policy for backend dev pod."
+  type        = string
+  default     = "IfNotPresent"
+}
+
 variable "service_type" {
   description = "Kubernetes Service type."
   type        = string

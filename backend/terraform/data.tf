@@ -14,17 +14,23 @@ data "kubernetes_namespace_v1" "target" {
   }
 }
 
-data "google_sql_database_instance" "postgres" {
-  project = var.project_id
-  name    = var.postgres_instance_name
-}
+data "terraform_remote_state" "root" {
+  backend = "gcs"
 
-data "google_memorystore_instance" "valkey" {
-  project     = var.project_id
-  instance_id = var.valkey_instance_id
-  location    = var.valkey_location
+  config = {
+    bucket = var.root_state_bucket
+    prefix = var.root_state_prefix
+  }
 }
 
 locals {
+  root_outputs     = data.terraform_remote_state.root.outputs
   target_namespace = var.create_namespace ? kubernetes_namespace_v1.target[0].metadata[0].name : data.kubernetes_namespace_v1.target[0].metadata[0].name
+}
+
+check "root_project_matches_backend_project" {
+  assert {
+    condition     = try(local.root_outputs.project_id, "") == var.project_id
+    error_message = "Root remote state project_id must match backend project_id."
+  }
 }

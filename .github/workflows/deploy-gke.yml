@@ -97,6 +97,34 @@ jobs:
           FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}"
 
           kubectl -n "${GKE_NAMESPACE}" set image "deployment/${BACKEND_DEPLOYMENT_NAME}" "*=${BACKEND_IMAGE}"
+
+          echo "Waiting for a running backend pod on image: ${BACKEND_IMAGE}"
+          BACKEND_POD=""
+          for _ in $(seq 1 30); do
+            BACKEND_POD="$(
+              kubectl -n "${GKE_NAMESPACE}" get pods \
+                -l "app.kubernetes.io/name=${BACKEND_DEPLOYMENT_NAME}" \
+                -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].image}{"\t"}{.status.phase}{"\n"}{end}' \
+              | awk -v img="${BACKEND_IMAGE}" '$2 == img && $3 == "Running" { print $1; exit }'
+            )"
+
+            if [ -n "${BACKEND_POD}" ]; then
+              break
+            fi
+
+            sleep 5
+          done
+
+          if [ -z "${BACKEND_POD}" ]; then
+            echo "Failed to find running backend pod with target image ${BACKEND_IMAGE}" >&2
+            kubectl -n "${GKE_NAMESPACE}" get pods -l "app.kubernetes.io/name=${BACKEND_DEPLOYMENT_NAME}" -o wide
+            exit 1
+          fi
+
+          echo "Running migrations in pod: ${BACKEND_POD}"
+          kubectl -n "${GKE_NAMESPACE}" exec "${BACKEND_POD}" -- sh -lc \
+            "node ./node_modules/typeorm/cli.js migration:run -d dist/database/typeorm.data-source.js"
+
           kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${BACKEND_DEPLOYMENT_NAME}" --timeout=5m
 
           kubectl -n "${GKE_NAMESPACE}" set image "deployment/${FRONTEND_DEPLOYMENT_NAME}" "*=${FRONTEND_IMAGE}"

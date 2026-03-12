@@ -66,6 +66,7 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
           'blacklist',
           'eip155:1',
           '0x1234567890abcdef1234567890abcdef12345678',
+          '0',
         ].join('\n'),
       )
       .digest('hex');
@@ -82,6 +83,13 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
 
     expect(idempotency.executeOnce).toHaveBeenCalledTimes(1);
     expect(mutate.execute).toHaveBeenCalledTimes(1);
+    expect(mutate.execute).toHaveBeenCalledWith({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      confirmPolicySwitch: false,
+    });
     expect(mutationHistory.append).toHaveBeenCalledTimes(1);
     expect(result.replayed).toBe(false);
     expect(result.idempotencyKey).toBe('idem-1');
@@ -99,6 +107,7 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
           'whitelist',
           'eip155:1',
           '0x1234567890abcdef1234567890abcdef12345678',
+          '0',
         ].join('\n'),
       )
       .digest('hex');
@@ -152,6 +161,7 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
           'blacklist',
           'eip155:1',
           '0x1234567890abcdef1234567890abcdef12345678',
+          '0',
         ].join('\n'),
       )
       .digest('hex');
@@ -169,5 +179,50 @@ describe('SecureMutateComplianceAddressPolicyService', () => {
     expect(mutate.execute).toHaveBeenCalledTimes(1);
     expect(result.replayed).toBe(false);
     expect(result.idempotencyKey).toBe('');
+  });
+
+  it('accepts confirmPolicySwitch=true when signature includes confirmation bit', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    mutate.execute.mockResolvedValue({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      changed: true,
+    });
+
+    const timestamp = `${Math.floor(Date.now() / 1000)}`;
+    const signature = createHmac('sha256', 'test-secret')
+      .update(
+        [
+          timestamp,
+          'idem-switch',
+          'add',
+          'blacklist',
+          'eip155:1',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          '1',
+        ].join('\n'),
+      )
+      .digest('hex');
+
+    await service.execute({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      idempotencyKey: 'idem-switch',
+      confirmPolicySwitch: true,
+      timestamp,
+      signature,
+    });
+
+    expect(mutate.execute).toHaveBeenCalledWith({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      confirmPolicySwitch: true,
+    });
   });
 });

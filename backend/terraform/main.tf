@@ -1,4 +1,7 @@
 locals {
+  http_backend_config_name = "${var.app_name}-http-backendconfig"
+  grpc_port                = 50051
+
   selector_labels = {
     "app.kubernetes.io/name" = var.app_name
   }
@@ -13,36 +16,25 @@ locals {
     var.app_labels,
   )
 
-  postgres_private_ips = [
-    for item in data.google_sql_database_instance.postgres.ip_address : item.ip_address
-    if item.type == "PRIVATE"
-  ]
-
-  valkey_connections = flatten([
-    for endpoint in try(data.google_memorystore_instance.valkey.endpoints, []) : try(endpoint.connections, [])
-  ])
-
-  valkey_psc_auto_connections = flatten([
-    for connection in local.valkey_connections : try(connection.psc_auto_connection, [])
-  ])
-
-  postgres_host = length(local.postgres_private_ips) > 0 ? local.postgres_private_ips[0] : data.google_sql_database_instance.postgres.first_ip_address
-  valkey_host   = try(local.valkey_psc_auto_connections[0].ip_address, "")
-  valkey_port   = try(local.valkey_psc_auto_connections[0].port, var.valkey_port_fallback)
+  postgres_host = local.root_outputs.postgres_host
+  valkey_host   = local.root_outputs.valkey_host
+  valkey_port   = local.root_outputs.valkey_port
 
   default_env = {
     PORT                          = tostring(var.container_port)
+    COMPLIANCE_GRPC_PORT          = tostring(local.grpc_port)
     COMPLIANCE_POLICY_HMAC_SECRET = var.policy_hmac_secret
     COMPLIANCE_DB_HOST            = local.postgres_host
-    COMPLIANCE_DB_PORT            = tostring(var.postgres_port)
-    COMPLIANCE_DB_USER            = var.postgres_user
+    COMPLIANCE_DB_PORT            = tostring(local.root_outputs.postgres_port)
+    COMPLIANCE_DB_USER            = local.root_outputs.postgres_user
     COMPLIANCE_DB_PASSWORD        = var.postgres_password
-    COMPLIANCE_DB_NAME            = var.postgres_db
+    COMPLIANCE_DB_NAME            = local.root_outputs.postgres_database_name
     COMPLIANCE_VALKEY_HOST        = local.valkey_host
     COMPLIANCE_VALKEY_PORT        = tostring(local.valkey_port)
   }
 
   effective_env = merge(local.default_env, var.env)
+  ingress_host  = var.ingress_host == null ? null : trimspace(var.ingress_host)
 }
 
 resource "kubernetes_deployment_v1" "app" {
@@ -75,6 +67,11 @@ resource "kubernetes_deployment_v1" "app" {
             container_port = var.container_port
           }
 
+          port {
+            name           = "grpc"
+            container_port = local.grpc_port
+          }
+
           dynamic "env" {
             for_each = local.effective_env
             content {
@@ -84,7 +81,8 @@ resource "kubernetes_deployment_v1" "app" {
           }
 
           readiness_probe {
-            tcp_socket {
+            http_get {
+              path = "/healthz"
               port = "http"
             }
             initial_delay_seconds = 5
@@ -92,7 +90,8 @@ resource "kubernetes_deployment_v1" "app" {
           }
 
           liveness_probe {
-            tcp_socket {
+            http_get {
+              path = "/healthz"
               port = "http"
             }
             initial_delay_seconds = 15
@@ -104,11 +103,44 @@ resource "kubernetes_deployment_v1" "app" {
   }
 }
 
+resource "kubernetes_manifest" "http_backend_config" {
+  manifest = {
+    apiVersion = "cloud.google.com/v1"
+    kind       = "BackendConfig"
+    metadata = {
+      name      = local.http_backend_config_name
+      namespace = local.target_namespace
+      labels    = local.common_labels
+    }
+    spec = {
+      healthCheck = {
+        type        = "HTTP"
+        requestPath = "/healthz"
+        port        = var.container_port
+      }
+    }
+  }
+}
+
 resource "kubernetes_service_v1" "app" {
+  depends_on = [kubernetes_manifest.http_backend_config]
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations["cloud.google.com/neg"],
+      metadata[0].annotations["cloud.google.com/neg-status"],
+    ]
+  }
+
   metadata {
     name      = "${var.app_name}-svc"
     namespace = local.target_namespace
     labels    = local.common_labels
+    annotations = {
+      "cloud.google.com/backend-config" = jsonencode({
+        default = local.http_backend_config_name
+      })
+    }
   }
 
   spec {
@@ -120,6 +152,60 @@ resource "kubernetes_service_v1" "app" {
       protocol    = "TCP"
       port        = var.service_port
       target_port = var.container_port
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "grpc" {
+  metadata {
+    name      = "${var.app_name}-grpc-svc"
+    namespace = local.target_namespace
+    labels    = local.common_labels
+  }
+
+  spec {
+    selector = local.selector_labels
+    type     = "LoadBalancer"
+
+    port {
+      name        = "grpc"
+      protocol    = "TCP"
+      port        = local.grpc_port
+      target_port = local.grpc_port
+    }
+  }
+}
+
+resource "kubernetes_ingress_v1" "app" {
+  metadata {
+    name        = "${var.app_name}-ing"
+    namespace   = local.target_namespace
+    labels      = local.common_labels
+    annotations = var.ingress_annotations
+  }
+
+  spec {
+    ingress_class_name = var.ingress_class_name
+
+    rule {
+      host = local.ingress_host
+
+      http {
+        path {
+          path      = var.ingress_path
+          path_type = var.ingress_path_type
+
+          backend {
+            service {
+              name = kubernetes_service_v1.app.metadata[0].name
+
+              port {
+                number = var.service_port
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

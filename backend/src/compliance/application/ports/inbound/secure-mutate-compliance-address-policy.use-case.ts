@@ -13,6 +13,7 @@ export interface SecureMutateComplianceAddressPolicyInput {
   network: string;
   policy: ComplianceAddressPolicy;
   action: CompliancePolicyMutationAction;
+  confirmPolicySwitch?: boolean;
   idempotencyKey?: string | null;
   signature: string;
   timestamp: string;

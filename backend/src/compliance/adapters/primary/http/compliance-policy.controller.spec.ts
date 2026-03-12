@@ -56,6 +56,7 @@ describe('CompliancePolicyController', () => {
       network: 'eip155:1',
       policy: 'blacklist',
       action: 'add',
+      confirmPolicySwitch: false,
       idempotencyKey: 'idem-1',
       timestamp: '1700000000',
       signature:
@@ -93,7 +94,47 @@ describe('CompliancePolicyController', () => {
       network: 'eip155:1',
       policy: 'blacklist',
       action: 'add',
+      confirmPolicySwitch: false,
       idempotencyKey: null,
+      timestamp: '1700000000',
+      signature:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      requestedBy: null,
+    });
+  });
+
+  it('passes confirmPolicySwitch=true from request body', async () => {
+    secureUseCase.execute.mockResolvedValue({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      changed: true,
+      idempotencyKey: 'idem-confirm',
+      replayed: false,
+    });
+
+    await controller.addToBlacklist(
+      {
+        address: '0x1234567890abcdef1234567890abcdef12345678',
+        network: 'eip155:1',
+        confirmPolicySwitch: true,
+      },
+      {
+        'x-idempotency-key': 'idem-confirm',
+        'x-timestamp': '1700000000',
+        'x-signature':
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+    );
+
+    expect(secureUseCase.execute).toHaveBeenCalledWith({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'blacklist',
+      action: 'add',
+      confirmPolicySwitch: true,
+      idempotencyKey: 'idem-confirm',
       timestamp: '1700000000',
       signature:
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

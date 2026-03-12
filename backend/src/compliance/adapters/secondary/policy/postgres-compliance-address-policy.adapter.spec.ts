@@ -124,6 +124,23 @@ describe('PostgresComplianceAddressPolicyAdapter', () => {
     expect(changed).toBe(false);
   });
 
+  it('returns exists=true when exact policy entry is present', async () => {
+    repository.existsBy.mockResolvedValue(true);
+
+    const exists = await adapter.exists({
+      address: '0x1234567890ABCDEF1234567890ABCDEF12345678',
+      network: 'eip155:1',
+      policy: 'whitelist',
+    });
+
+    expect(exists).toBe(true);
+    expect(repository.existsBy).toHaveBeenCalledWith({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      network: 'eip155:1',
+      policy: 'whitelist',
+    });
+  });
+
   it('removes entry and returns true when row was affected', async () => {
     repository.delete.mockResolvedValue({ affected: 1 });
 

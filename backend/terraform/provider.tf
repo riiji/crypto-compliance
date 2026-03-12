@@ -6,12 +6,12 @@ provider "google" {
 data "google_client_config" "current" {}
 
 locals {
-  normalized_gke_location = trimsuffix(trimspace(var.gke_location), "-")
+  normalized_gke_location = trimsuffix(trimspace(local.root_outputs.gke_location), "-")
 }
 
 data "google_container_cluster" "target" {
   project  = var.project_id
-  name     = var.gke_cluster_name
+  name     = local.root_outputs.gke_cluster_name
   location = local.normalized_gke_location
 }
 

@@ -58,6 +58,16 @@ export class PostgresComplianceAddressPolicyAdapter implements ComplianceAddress
     return result.identifiers.length > 0;
   }
 
+  async exists(entry: ComplianceAddressPolicyEntry): Promise<boolean> {
+    const normalized = this.normalizePolicyEntry(entry);
+
+    return this.repository.existsBy({
+      address: normalized.address,
+      network: normalized.network,
+      policy: normalized.policy,
+    });
+  }
+
   async remove(entry: ComplianceAddressPolicyEntry): Promise<boolean> {
     const normalized = this.normalizePolicyEntry(entry);
 

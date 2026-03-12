@@ -25,6 +25,7 @@ describe('CheckAddressComplianceService', () => {
   beforeEach(() => {
     policy = {
       getPolicy: jest.fn(),
+      exists: jest.fn(),
       add: jest.fn(),
       remove: jest.fn(),
       list: jest.fn(),

@@ -103,3 +103,35 @@ resource "kubernetes_service_v1" "app" {
     }
   }
 }
+
+resource "kubernetes_ingress_v1" "app" {
+  metadata {
+    name        = "${var.app_name}-ing"
+    namespace   = var.namespace
+    labels      = local.common_labels
+    annotations = var.ingress_annotations
+  }
+
+  spec {
+    ingress_class_name = "traefik"
+
+    rule {
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = kubernetes_service_v1.app.metadata[0].name
+
+              port {
+                number = var.service_port
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

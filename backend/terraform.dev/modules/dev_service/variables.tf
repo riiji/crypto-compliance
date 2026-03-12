@@ -25,6 +25,12 @@ variable "service_type" {
   default     = "ClusterIP"
 }
 
+variable "ingress_annotations" {
+  description = "Additional annotations for ingress."
+  type        = map(string)
+  default     = {}
+}
+
 variable "image" {
   description = "Container image for dev pod."
   type        = string

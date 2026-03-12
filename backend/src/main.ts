@@ -30,9 +30,16 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, swaggerDocumentFactory);
   }
 
+  const grpcPort = Number.parseInt(
+    process.env.COMPLIANCE_GRPC_PORT ?? '50051',
+    10,
+  );
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,
     options: {
+      url: `0.0.0.0:${
+        Number.isInteger(grpcPort) && grpcPort > 0 ? grpcPort : 50051
+      }`,
       package: ['compliance'],
       protoPath: [join(__dirname, 'compliance/compliance.proto')],
     },

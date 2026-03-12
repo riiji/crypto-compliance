@@ -21,6 +21,8 @@ export interface ComplianceAddressPolicyPort {
     network: string;
   }): Promise<ComplianceAddressPolicy | null>;
 
+  exists(entry: ComplianceAddressPolicyEntry): Promise<boolean>;
+
   add(entry: ComplianceAddressPolicyEntry): Promise<boolean>;
 
   remove(entry: ComplianceAddressPolicyEntry): Promise<boolean>;

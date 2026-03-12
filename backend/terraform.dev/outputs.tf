@@ -13,3 +13,7 @@ output "service_name" {
 output "service_port" {
   value = module.service.service_port
 }
+
+output "ingress_name" {
+  value = module.service.ingress_name
+}

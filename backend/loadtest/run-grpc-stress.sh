@@ -12,7 +12,7 @@ RESULTS_ROOT="${RESULTS_ROOT:-${SCRIPT_DIR}/results}"
 RESULTS_DIR="${RESULTS_DIR:-${RESULTS_ROOT}/${RUN_ID}}"
 LATEST_LINK="${RESULTS_ROOT}/latest"
 
-TARGET="${TARGET:-localhost:5000}"
+TARGET="${TARGET:-192.168.2.14:5000}"
 CALL="${CALL:-compliance.ComplianceService.CheckAddressCompliance}"
 PROTO_FILE="${PROTO_FILE:-compliance/compliance.proto}"
 

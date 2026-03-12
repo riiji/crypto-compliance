@@ -11,6 +11,7 @@ export interface MutateComplianceAddressPolicyInput {
   network: string;
   policy: ComplianceAddressPolicy;
   action: CompliancePolicyMutationAction;
+  confirmPolicySwitch?: boolean;
 }
 
 export interface MutateComplianceAddressPolicyResult {

@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { z } from 'zod';
 import {
   COMPLIANCE_ADDRESS_POLICY_PORT,
@@ -27,6 +32,7 @@ const mutateCompliancePolicyInputSchema = z
       ),
     policy: z.enum(['blacklist', 'whitelist']),
     action: z.enum(['add', 'remove']),
+    confirmPolicySwitch: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     const [namespace, reference = ''] = value.network.split(':', 2);
@@ -65,11 +71,7 @@ export class MutateComplianceAddressPolicyService implements MutateComplianceAdd
 
     const changed =
       normalized.action === 'add'
-        ? await this.complianceAddressPolicy.add({
-            address: normalized.address,
-            network: normalized.network,
-            policy: normalized.policy,
-          })
+        ? await this.addWithInvariant(normalized)
         : await this.complianceAddressPolicy.remove({
             address: normalized.address,
             network: normalized.network,
@@ -83,6 +85,46 @@ export class MutateComplianceAddressPolicyService implements MutateComplianceAdd
       action: normalized.action,
       changed,
     };
+  }
+
+  private async addWithInvariant(
+    input: MutateComplianceAddressPolicyInput,
+  ): Promise<boolean> {
+    const targetEntry = {
+      address: input.address,
+      network: input.network,
+      policy: input.policy,
+    } as const;
+    const oppositePolicy = input.policy === 'blacklist' ? 'whitelist' : 'blacklist';
+    const oppositeEntry = {
+      address: input.address,
+      network: input.network,
+      policy: oppositePolicy,
+    } as const;
+
+    const [targetExists, oppositeExists] = await Promise.all([
+      this.complianceAddressPolicy.exists(targetEntry),
+      this.complianceAddressPolicy.exists(oppositeEntry),
+    ]);
+
+    if (
+      input.policy === 'blacklist' &&
+      oppositeExists &&
+      !input.confirmPolicySwitch
+    ) {
+      throw new ConflictException(
+        'Address already exists in whitelist. Confirmation is required to move it to blacklist.',
+      );
+    }
+
+    if (oppositeExists) {
+      await this.complianceAddressPolicy.remove(oppositeEntry);
+    }
+
+    const added = targetExists
+      ? false
+      : await this.complianceAddressPolicy.add(targetEntry);
+    return oppositeExists || added;
   }
 
   private validateAndNormalizeInput(
@@ -104,6 +146,7 @@ export class MutateComplianceAddressPolicyService implements MutateComplianceAdd
       ...input,
       address:
         namespace === 'eip155' ? input.address.toLowerCase() : input.address,
+      confirmPolicySwitch: input.confirmPolicySwitch ?? false,
     };
   }
 

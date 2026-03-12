@@ -31,6 +31,7 @@ const securePolicyMutationInputSchema = z.object({
   network: z.string().trim().min(1, 'Network must not be empty'),
   policy: z.enum(['blacklist', 'whitelist']),
   action: z.enum(['add', 'remove']),
+  confirmPolicySwitch: z.boolean().optional(),
   idempotencyKey: z
     .string()
     .trim()
@@ -105,6 +106,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
         network: validated.network,
         policy: validated.policy,
         action: validated.action,
+        confirmPolicySwitch: validated.confirmPolicySwitch,
       });
 
       await this.compliancePolicyMutationHistory.append({
@@ -159,6 +161,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
       signature: parsed.data.signature.trim().toLowerCase(),
       timestamp: parsed.data.timestamp.trim(),
       requestedBy: parsed.data.requestedBy?.trim() ?? null,
+      confirmPolicySwitch: parsed.data.confirmPolicySwitch ?? false,
     };
   }
 
@@ -206,6 +209,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
           input.policy,
           input.network,
           input.address,
+          input.confirmPolicySwitch ? '1' : '0',
         ].join('\n')
       : [
           input.timestamp,
@@ -213,6 +217,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
           input.policy,
           input.network,
           input.address,
+          input.confirmPolicySwitch ? '1' : '0',
         ].join('\n');
 
     return createHmac('sha256', this.secret!).update(payload).digest('hex');
@@ -226,6 +231,7 @@ export class SecureMutateComplianceAddressPolicyService implements SecureMutateC
       input.policy,
       input.network,
       input.address,
+      input.confirmPolicySwitch ? '1' : '0',
     ].join('\n');
 
     return createHash('sha256').update(payload).digest('hex');
