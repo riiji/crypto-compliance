@@ -24,8 +24,8 @@ Cleanup note:
 
 ## Requirements
 
-- Node.js 20+
-- pnpm 9+
+- Node.js `>= 24.14.0` (baseline `24.14.0`)
+- pnpm `>= 10.32.0` (baseline `10.32.0`)
 - Postgres
 - Valkey/Redis (used for cache, lock, idempotency, and BullMQ transport)
 

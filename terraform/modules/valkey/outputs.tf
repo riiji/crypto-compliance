@@ -1,16 +1,16 @@
 locals {
-  psc_host = try(google_memorystore_instance.this.endpoints[0].connections[0].psc_auto_connection[0].ip_address, null)
-  psc_port = try(google_memorystore_instance.this.endpoints[0].connections[0].psc_auto_connection[0].port, null)
+  psc_host = try(google_memorystore_instance.instance.endpoints[0].connections[0].psc_auto_connection[0].ip_address, null)
+  psc_port = try(google_memorystore_instance.instance.endpoints[0].connections[0].psc_auto_connection[0].port, null)
 }
 
 output "instance_id" {
   description = "Memorystore for Valkey instance ID."
-  value       = google_memorystore_instance.this.instance_id
+  value       = google_memorystore_instance.instance.instance_id
 }
 
 output "location" {
   description = "Memorystore for Valkey location."
-  value       = google_memorystore_instance.this.location
+  value       = google_memorystore_instance.instance.location
 }
 
 output "host" {

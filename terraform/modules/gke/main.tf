@@ -1,4 +1,4 @@
-resource "google_container_cluster" "this" {
+resource "google_container_cluster" "cluster" {
   name     = var.name
   location = var.location
 
@@ -28,7 +28,7 @@ resource "google_container_cluster" "this" {
 
 resource "google_container_node_pool" "primary" {
   name     = "${var.name}-pool"
-  cluster  = google_container_cluster.this.name
+  cluster  = google_container_cluster.cluster.name
   location = var.location
 
   node_count = var.node_count

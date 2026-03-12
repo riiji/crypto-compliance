@@ -4,6 +4,11 @@
   "description": "",
   "author": "",
   "private": true,
+  "packageManager": "pnpm@10.32.0",
+  "engines": {
+    "node": ">=24.14.0",
+    "pnpm": ">=10.32.0"
+  },
   "license": "UNLICENSED",
   "scripts": {
     "proto:gen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src --ts_proto_opt=nestJs=true,esModuleInterop=true,importSuffix=.js -I ./src ./src/compliance/compliance.proto",

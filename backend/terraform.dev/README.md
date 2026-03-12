@@ -2,11 +2,15 @@
 
 Minimal backend dev deployment on Kubernetes.
 
-- Uses `node:24`
+- Uses `node:24.14.0`
 - Mounts backend source from host path
 - Runs: `corepack enable && pnpm install && pnpm run start:dev`
 - Injects default `COMPLIANCE_DB_*` and `COMPLIANCE_VALKEY_*` env vars for
   in-cluster services (overridable via `env`)
+
+Tooling baseline:
+- Terraform CLI `~> 1.14.6`
+- Provider: `hashicorp/kubernetes ~> 3.0.1`
 
 ## Usage
 

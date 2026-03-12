@@ -10,7 +10,7 @@ resource "google_compute_subnetwork" "psc" {
   network       = local.network_resource
 }
 
-resource "google_network_connectivity_service_connection_policy" "this" {
+resource "google_network_connectivity_service_connection_policy" "psc_policy" {
   name          = "${var.instance_id}-policy"
   location      = var.location
   service_class = "gcp-memorystore"
@@ -21,7 +21,7 @@ resource "google_network_connectivity_service_connection_policy" "this" {
   }
 }
 
-resource "google_memorystore_instance" "this" {
+resource "google_memorystore_instance" "instance" {
   instance_id = var.instance_id
   location    = var.location
 
@@ -55,5 +55,5 @@ resource "google_memorystore_instance" "this" {
 
   labels = var.labels
 
-  depends_on = [google_network_connectivity_service_connection_policy.this]
+  depends_on = [google_network_connectivity_service_connection_policy.psc_policy]
 }

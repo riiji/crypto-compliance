@@ -13,6 +13,10 @@ This folder deploys the frontend service to an existing GKE cluster.
 
 ## Usage
 
+Tooling baseline:
+- Terraform CLI `~> 1.14.6`
+- Providers: `hashicorp/google ~> 7.23.0`, `hashicorp/kubernetes ~> 3.0.1`
+
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars

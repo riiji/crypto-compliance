@@ -12,7 +12,7 @@ resource "google_service_networking_connection" "private_service_connection" {
   reserved_peering_ranges = [google_compute_global_address.private_service_range.name]
 }
 
-resource "google_sql_database_instance" "this" {
+resource "google_sql_database_instance" "instance" {
   name             = var.instance_name
   region           = var.region
   database_version = var.database_version
@@ -48,20 +48,20 @@ resource "google_sql_database_instance" "this" {
   depends_on = [google_service_networking_connection.private_service_connection]
 }
 
-resource "google_sql_database" "this" {
+resource "google_sql_database" "application" {
   name     = var.database_name
-  instance = google_sql_database_instance.this.name
+  instance = google_sql_database_instance.instance.name
 }
 
-resource "google_sql_user" "this" {
+resource "google_sql_user" "application" {
   name     = var.user_name
-  instance = google_sql_database_instance.this.name
+  instance = google_sql_database_instance.instance.name
   password = var.user_password
 }
 
 locals {
   private_ips = [
-    for item in google_sql_database_instance.this.ip_address : item.ip_address
+    for item in google_sql_database_instance.instance.ip_address : item.ip_address
     if item.type == "PRIVATE"
   ]
 }

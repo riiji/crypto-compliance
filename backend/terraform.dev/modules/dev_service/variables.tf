@@ -28,7 +28,7 @@ variable "service_type" {
 variable "image" {
   description = "Container image for dev pod."
   type        = string
-  default     = "node:24"
+  default     = "node:24.14.0"
 }
 
 variable "image_pull_policy" {
