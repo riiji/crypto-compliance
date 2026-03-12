@@ -1,0 +1,143 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Optional image tag override (default: short SHA)"
+        required: false
+        default: ""
+        type: string
+      push_latest:
+        description: "Also push the latest tag"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'crypto-compliance' }}
+  BACKEND_IMAGE_NAME: crypto-compliance-backend
+  FRONTEND_IMAGE_NAME: crypto-compliance-frontend
+
+jobs:
+  ci:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.3.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.2.0
+        with:
+          version: 10.32.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+          cache-dependency-path: |
+            backend/pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Run backend tests
+        run: pnpm --dir backend test --runInBand
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Run frontend lint
+        run: pnpm --dir frontend lint
+
+  build_and_push:
+    name: Build and Push to Artifact Registry
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.3.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2.1.13
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2.2.1
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Resolve image metadata
+        id: meta
+        run: |
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+
+          IMAGE_TAG="${SHORT_SHA}"
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          fi
+
+          PUSH_LATEST="true"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.push_latest }}" = "false" ]; then
+            PUSH_LATEST="false"
+          fi
+
+          BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${BACKEND_IMAGE_NAME}"
+          FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}"
+
+          echo "short_sha=${SHORT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "push_latest=${PUSH_LATEST}" >> "${GITHUB_OUTPUT}"
+          echo "backend_image=${BACKEND_IMAGE}" >> "${GITHUB_OUTPUT}"
+          echo "frontend_image=${FRONTEND_IMAGE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push backend image
+        run: |
+          docker build \
+            -f backend/Dockerfile \
+            -t "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}" \
+            backend
+          docker push "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          if [ "${{ steps.meta.outputs.push_latest }}" = "true" ]; then
+            docker tag "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}" "${{ steps.meta.outputs.backend_image }}:latest"
+            docker push "${{ steps.meta.outputs.backend_image }}:latest"
+          fi
+
+      - name: Build and push frontend image
+        run: |
+          docker build \
+            -f frontend/Dockerfile \
+            -t "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}" \
+            frontend
+          docker push "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          if [ "${{ steps.meta.outputs.push_latest }}" = "true" ]; then
+            docker tag "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}" "${{ steps.meta.outputs.frontend_image }}:latest"
+            docker push "${{ steps.meta.outputs.frontend_image }}:latest"
+          fi
+
+      - name: Publish summary
+        run: |
+          {
+            echo "### Artifact Registry Push"
+            echo ""
+            echo "- tag: \`${{ steps.meta.outputs.image_tag }}\`"
+            echo "- push_latest: \`${{ steps.meta.outputs.push_latest }}\`"
+            echo "- backend: \`${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}\`"
+            echo "- frontend: \`${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

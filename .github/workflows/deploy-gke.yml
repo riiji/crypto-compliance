@@ -1,10 +1,18 @@
-name: CI/CD to GKE
+name: Deploy to GKE
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (for example: latest or short SHA)"
+        required: true
+        default: latest
+        type: string
+  workflow_run:
+    workflows:
+      - Build and Push Images
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -22,106 +30,60 @@ env:
   FRONTEND_DEPLOYMENT_NAME: crypto-compliance-frontend
 
 jobs:
-  ci:
-    name: Lint and Test
+  deploy:
+    name: Deploy backend and frontend
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v4.2.0
         with:
-          version: 10
+          version: 10.32.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0
         with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            backend/pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
+          node-version: 24.14.0
 
-      - name: Install backend dependencies
-        run: pnpm --dir backend install --frozen-lockfile
+      - name: Setup kubectl
+        run: |
+          KUBECTL_VERSION="v1.34.5"
+          curl -fsSLo kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSLo kubectl.sha256 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-      - name: Run backend tests
-        run: pnpm --dir backend test --runInBand
+      - name: Verify toolchain versions
+        run: |
+          node -v
+          pnpm -v
+          kubectl version --client
 
-      - name: Install frontend dependencies
-        run: pnpm --dir frontend install --frozen-lockfile
+      - name: Select image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          else
+            IMAGE_TAG="$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)"
+          fi
 
-      - name: Run frontend lint
-        run: pnpm --dir frontend lint
+          if [ -z "${IMAGE_TAG}" ]; then
+            echo "Image tag is empty" >&2
+            exit 1
+          fi
 
-  build:
-    name: Build and Push Images
-    needs: ci
-    runs-on: ubuntu-latest
-    outputs:
-      short_sha: ${{ steps.meta.outputs.short_sha }}
-      backend_image: ${{ steps.meta.outputs.backend_image }}
-      frontend_image: ${{ steps.meta.outputs.frontend_image }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Deploying image tag: ${IMAGE_TAG}"
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          project_id: ${{ env.PROJECT_ID }}
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
-
-      - name: Prepare image metadata
-        id: meta
-        run: |
-          SHORT_SHA="$(git rev-parse --short HEAD)"
-          BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${BACKEND_IMAGE_NAME}"
-          FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}"
-          echo "short_sha=${SHORT_SHA}" >> "${GITHUB_OUTPUT}"
-          echo "backend_image=${BACKEND_IMAGE}" >> "${GITHUB_OUTPUT}"
-          echo "frontend_image=${FRONTEND_IMAGE}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build and push backend image
-        run: |
-          docker build \
-            -f backend/Dockerfile \
-            -t "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.short_sha }}" \
-            -t "${{ steps.meta.outputs.backend_image }}:latest" \
-            backend
-          docker push "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.short_sha }}"
-          docker push "${{ steps.meta.outputs.backend_image }}:latest"
-
-      - name: Build and push frontend image
-        run: |
-          docker build \
-            -f frontend/Dockerfile \
-            -t "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.short_sha }}" \
-            -t "${{ steps.meta.outputs.frontend_image }}:latest" \
-            frontend
-          docker push "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.short_sha }}"
-          docker push "${{ steps.meta.outputs.frontend_image }}:latest"
-
-  deploy:
-    name: Deploy to GKE
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v2.1.13
         with:
           project_id: ${{ env.PROJECT_ID }}
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
+        uses: google-github-actions/get-gke-credentials@v2.3.1
         with:
           project_id: ${{ env.PROJECT_ID }}
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
@@ -129,13 +91,15 @@ jobs:
 
       - name: Deploy backend and frontend
         env:
-          SHORT_SHA: ${{ needs.build.outputs.short_sha }}
-          BACKEND_IMAGE: ${{ needs.build.outputs.backend_image }}
-          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend_image }}
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
         run: |
-          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${BACKEND_DEPLOYMENT_NAME}" "*=${BACKEND_IMAGE}:${SHORT_SHA}"
+          BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}"
+          FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}"
+
+          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${BACKEND_DEPLOYMENT_NAME}" "*=${BACKEND_IMAGE}"
           kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${BACKEND_DEPLOYMENT_NAME}" --timeout=5m
-          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${FRONTEND_DEPLOYMENT_NAME}" "*=${FRONTEND_IMAGE}:${SHORT_SHA}"
+
+          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${FRONTEND_DEPLOYMENT_NAME}" "*=${FRONTEND_IMAGE}"
           kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${FRONTEND_DEPLOYMENT_NAME}" --timeout=5m
 
       - name: Show deployed images
