@@ -29,6 +29,18 @@ variable "host_repo_path" {
   default     = "/home/ubuntu/crypto-compliance/frontend"
 }
 
+variable "image" {
+  description = "Container image for frontend dev pod (for example node:24.14.0 or an Artifact Registry image)."
+  type        = string
+  default     = "node:24.14.0"
+}
+
+variable "image_pull_policy" {
+  description = "Kubernetes image pull policy for frontend dev pod."
+  type        = string
+  default     = "IfNotPresent"
+}
+
 variable "service_type" {
   description = "Kubernetes Service type."
   type        = string

@@ -1,0 +1,2 @@
+bucket = "vernal-parser-328009-crypto-compliance-tfstate-prod"
+prefix = "crypto-compliance/prod/frontend"

@@ -8,6 +8,7 @@ import {
 interface PolicyMutationBody {
   address?: string;
   network?: string;
+  confirmPolicySwitch?: boolean;
 }
 
 function errorResponse(error: unknown): NextResponse {
@@ -27,6 +28,7 @@ function errorResponse(error: unknown): NextResponse {
 function validateBody(body: PolicyMutationBody): {
   address: string;
   network: string;
+  confirmPolicySwitch: boolean;
 } {
   const address = body.address?.trim() ?? '';
   const network = body.network?.trim() ?? '';
@@ -39,9 +41,17 @@ function validateBody(body: PolicyMutationBody): {
     throw new UpstreamApiError('Network is required', 400);
   }
 
+  if (
+    body.confirmPolicySwitch !== undefined &&
+    typeof body.confirmPolicySwitch !== 'boolean'
+  ) {
+    throw new UpstreamApiError('confirmPolicySwitch must be a boolean', 400);
+  }
+
   return {
     address,
     network,
+    confirmPolicySwitch: body.confirmPolicySwitch ?? false,
   };
 }
 
@@ -64,6 +74,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       action: 'add',
       address: validated.address,
       network: validated.network,
+      confirmPolicySwitch: validated.confirmPolicySwitch,
     });
 
     return NextResponse.json(data, { status: 200 });
@@ -82,6 +93,7 @@ export async function DELETE(request: Request): Promise<NextResponse> {
       action: 'remove',
       address: validated.address,
       network: validated.network,
+      confirmPolicySwitch: validated.confirmPolicySwitch,
     });
 
     return NextResponse.json(data, { status: 200 });

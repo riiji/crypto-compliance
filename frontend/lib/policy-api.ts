@@ -149,11 +149,13 @@ export async function mutatePolicy(input: {
   address: string;
   network: string;
   idempotencyKey?: string;
+  confirmPolicySwitch?: boolean;
 }): Promise<CompliancePolicyMutationResponse> {
   const secret = requireSecret();
   const network = normalizeNetwork(input.network);
   const address = normalizeAddress(input.address);
   const normalizedAddress = normalizeAddressForSignature(address, network);
+  const confirmPolicySwitch = input.confirmPolicySwitch ?? false;
   const idempotencyKey = input.idempotencyKey ?? randomUUID();
   const timestamp = `${Math.floor(Date.now() / 1000)}`;
   const signaturePayload = [
@@ -163,6 +165,7 @@ export async function mutatePolicy(input: {
     input.policy,
     network,
     normalizedAddress,
+    confirmPolicySwitch ? '1' : '0',
   ].join('\n');
   const signature = createHmac('sha256', secret)
     .update(signaturePayload)
@@ -183,6 +186,7 @@ export async function mutatePolicy(input: {
       body: JSON.stringify({
         address,
         network,
+        confirmPolicySwitch,
       }),
     },
   );

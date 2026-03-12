@@ -52,6 +52,20 @@ function formatDateTime(value: string): string {
   return parsed.toLocaleString();
 }
 
+function normalizeAddressForComparison(address: string, network: string): string {
+  const [namespace] = network.split(':', 2);
+  const normalizedAddress = address.trim();
+  return namespace === 'eip155'
+    ? normalizedAddress.toLowerCase()
+    : normalizedAddress;
+}
+
+function policyEntryKey(entry: CompliancePolicyEntry): string {
+  const network = entry.network.trim();
+  const address = normalizeAddressForComparison(entry.address, network);
+  return `${network}:${address}`;
+}
+
 export default function Home() {
   const [blacklist, setBlacklist] = useState<CompliancePolicyEntry[]>([]);
   const [whitelist, setWhitelist] = useState<CompliancePolicyEntry[]>([]);
@@ -104,6 +118,11 @@ export default function Home() {
     [blacklist, whitelist],
   );
 
+  const whitelistEntryKeys = useMemo(
+    () => new Set(whitelist.map((entry) => policyEntryKey(entry))),
+    [whitelist],
+  );
+
   const setFormField = useCallback(
     (policy: CompliancePolicy, field: keyof FormState, value: string) => {
       setForms((previous) => ({
@@ -122,6 +141,7 @@ export default function Home() {
       policy: CompliancePolicy,
       action: 'add' | 'remove',
       payload: CompliancePolicyEntry,
+      options?: { confirmPolicySwitch?: boolean },
     ) => {
       setError(null);
       setIsMutating(true);
@@ -134,6 +154,7 @@ export default function Home() {
           body: JSON.stringify({
             address: payload.address.trim(),
             network: payload.network.trim(),
+            confirmPolicySwitch: options?.confirmPolicySwitch ?? false,
           }),
         });
         await readJson(response);
@@ -159,7 +180,27 @@ export default function Home() {
         return;
       }
 
-      await mutatePolicy(policy, 'add', form);
+      const payload: CompliancePolicyEntry = {
+        address: form.address.trim(),
+        network: form.network.trim(),
+      };
+
+      let confirmPolicySwitch = false;
+      if (policy === 'blacklist') {
+        const key = policyEntryKey(payload);
+        if (whitelistEntryKeys.has(key)) {
+          const confirmed = window.confirm(
+            'This address and network are already in whitelist. Move it to blacklist and remove it from whitelist?',
+          );
+          if (!confirmed) {
+            return;
+          }
+
+          confirmPolicySwitch = true;
+        }
+      }
+
+      await mutatePolicy(policy, 'add', payload, { confirmPolicySwitch });
       setForms((previous) => ({
         ...previous,
         [policy]: {
@@ -168,7 +209,7 @@ export default function Home() {
         },
       }));
     },
-    [forms, mutatePolicy],
+    [forms, mutatePolicy, whitelistEntryKeys],
   );
 
   const handleRemove = useCallback(

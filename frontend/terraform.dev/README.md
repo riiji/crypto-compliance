@@ -3,6 +3,7 @@
 Minimal frontend dev deployment on Kubernetes.
 
 - Uses `node:24.14.0`
+- Can use an Artifact Registry image via `image` in `terraform.tfvars`
 - Mounts frontend source from host path
 - Runs: `corepack enable && pnpm install && pnpm dev --hostname 0.0.0.0 --port 3000`
 

@@ -9,14 +9,15 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "gke_cluster_name" {
-  description = "GKE cluster name where frontend resources are deployed."
+variable "root_state_bucket" {
+  description = "GCS bucket containing root Terraform remote state."
   type        = string
 }
 
-variable "gke_location" {
-  description = "GKE cluster location (zone or region)."
+variable "root_state_prefix" {
+  description = "Prefix path for root Terraform remote state."
   type        = string
+  default     = "crypto-compliance/prod/root"
 }
 
 variable "namespace" {
