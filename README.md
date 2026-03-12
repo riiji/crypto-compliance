@@ -7,9 +7,19 @@ Repository structure:
 - `terraform/` - production/shared infrastructure on Google Cloud (GKE, Cloud SQL Postgres 18, Memorystore for Valkey).
 - `terraform.dev/` - lightweight development data services on Kubernetes.
 
+## Version Matrix
+
+- Node.js: `>= 24.14.0` (baseline `24.14.0`)
+- pnpm: `>= 10.32.0` (baseline `10.32.0`)
+- Terraform CLI: `~> 1.14.6`
+- kubectl (upstream client): `v1.34.5`
+- Terraform providers:
+  - `hashicorp/google ~> 7.23.0`
+  - `hashicorp/kubernetes ~> 3.0.1`
+
 ## Requirements
 
-- Terraform `>= 1.5`
+- Terraform `~> 1.14.6`
 - Google Cloud project with billing enabled
 - Credentials configured for Terraform (`GOOGLE_APPLICATION_CREDENTIALS` or `gcloud auth application-default login`)
 - Container images published and reachable by GKE
@@ -81,14 +91,20 @@ For Kubernetes hot-reload development workflows:
 
 ## GitHub Actions CI/CD (GKE)
 
-Workflow: `.github/workflows/deploy-gke.yml`
+Workflows:
+- `.github/workflows/build-push-images.yml`
+- `.github/workflows/deploy-gke.yml`
 
-On push to `main`, it:
+`build-push-images.yml`:
+- Triggered on push to `main` and manually via **Actions** UI.
+- Runs backend tests + frontend lint.
+- Builds backend/frontend images and pushes to Artifact Registry.
+- Manual run supports custom `image_tag` and optional `push_latest`.
 
-- Runs backend tests and frontend lint
-- Builds backend and frontend container images
-- Pushes both images to Artifact Registry
-- Updates both Kubernetes deployments in GKE and waits for rollout
+`deploy-gke.yml`:
+- Triggered manually via **Actions** UI with `image_tag`.
+- Also auto-runs after successful **push-triggered** `build-push-images.yml` and deploys the matching short-SHA tag.
+- Updates both GKE deployments and waits for rollout.
 
 Required repository secrets:
 

@@ -14,7 +14,7 @@ locals {
   )
 }
 
-resource "kubernetes_deployment_v1" "this" {
+resource "kubernetes_deployment_v1" "deployment" {
   metadata {
     name      = var.name
     namespace = var.namespace
@@ -72,7 +72,7 @@ resource "kubernetes_deployment_v1" "this" {
   }
 }
 
-resource "kubernetes_service_v1" "this" {
+resource "kubernetes_service_v1" "service" {
   metadata {
     name      = var.name
     namespace = var.namespace

@@ -7,6 +7,10 @@ Resources:
 - `module.postgres` (`./modules/postgres`)
 - `module.valkey` (`./modules/valkey`)
 
+Tooling baseline:
+- Terraform CLI `~> 1.14.6`
+- Provider: `hashicorp/kubernetes ~> 3.0.1`
+
 ## Usage
 
 ```bash
