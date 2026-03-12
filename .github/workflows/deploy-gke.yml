@@ -1,0 +1,144 @@
+name: CI/CD to GKE
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'crypto-compliance' }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME || 'crypto-compliance-gke' }}
+  GKE_LOCATION: ${{ vars.GKE_LOCATION || 'us-central1-a' }}
+  GKE_NAMESPACE: ${{ vars.GKE_NAMESPACE || 'crypto-compliance' }}
+  BACKEND_IMAGE_NAME: crypto-compliance-backend
+  FRONTEND_IMAGE_NAME: crypto-compliance-frontend
+  BACKEND_DEPLOYMENT_NAME: crypto-compliance-backend
+  FRONTEND_DEPLOYMENT_NAME: crypto-compliance-frontend
+
+jobs:
+  ci:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            backend/pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Run backend tests
+        run: pnpm --dir backend test --runInBand
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Run frontend lint
+        run: pnpm --dir frontend lint
+
+  build:
+    name: Build and Push Images
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      backend_image: ${{ steps.meta.outputs.backend_image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Prepare image metadata
+        id: meta
+        run: |
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${BACKEND_IMAGE_NAME}"
+          FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}"
+          echo "short_sha=${SHORT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "backend_image=${BACKEND_IMAGE}" >> "${GITHUB_OUTPUT}"
+          echo "frontend_image=${FRONTEND_IMAGE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push backend image
+        run: |
+          docker build \
+            -f backend/Dockerfile \
+            -t "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.short_sha }}" \
+            -t "${{ steps.meta.outputs.backend_image }}:latest" \
+            backend
+          docker push "${{ steps.meta.outputs.backend_image }}:${{ steps.meta.outputs.short_sha }}"
+          docker push "${{ steps.meta.outputs.backend_image }}:latest"
+
+      - name: Build and push frontend image
+        run: |
+          docker build \
+            -f frontend/Dockerfile \
+            -t "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.short_sha }}" \
+            -t "${{ steps.meta.outputs.frontend_image }}:latest" \
+            frontend
+          docker push "${{ steps.meta.outputs.frontend_image }}:${{ steps.meta.outputs.short_sha }}"
+          docker push "${{ steps.meta.outputs.frontend_image }}:latest"
+
+  deploy:
+    name: Deploy to GKE
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+
+      - name: Deploy backend and frontend
+        env:
+          SHORT_SHA: ${{ needs.build.outputs.short_sha }}
+          BACKEND_IMAGE: ${{ needs.build.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend_image }}
+        run: |
+          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${BACKEND_DEPLOYMENT_NAME}" "*=${BACKEND_IMAGE}:${SHORT_SHA}"
+          kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${BACKEND_DEPLOYMENT_NAME}" --timeout=5m
+          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${FRONTEND_DEPLOYMENT_NAME}" "*=${FRONTEND_IMAGE}:${SHORT_SHA}"
+          kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${FRONTEND_DEPLOYMENT_NAME}" --timeout=5m
+
+      - name: Show deployed images
+        run: |
+          kubectl -n "${GKE_NAMESPACE}" get deployment "${BACKEND_DEPLOYMENT_NAME}" -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
+          kubectl -n "${GKE_NAMESPACE}" get deployment "${FRONTEND_DEPLOYMENT_NAME}" -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'

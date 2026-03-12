@@ -1,0 +1,10 @@
+namespace      = "default"
+app_name       = "crypto-compliance-frontend-dev"
+host_repo_path = "/home/ubuntu/crypto-compliance/frontend"
+service_type   = "ClusterIP"
+service_port   = 3000
+
+env = {
+  BACKEND_API_BASE_URL          = "http://crypto-compliance-backend-dev-svc.default.svc.cluster.local:3000"
+  COMPLIANCE_POLICY_HMAC_SECRET = "change-me"
+}

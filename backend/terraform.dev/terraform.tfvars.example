@@ -1,0 +1,13 @@
+namespace      = "default"
+app_name       = "crypto-compliance-backend-dev"
+host_repo_path = "/home/ubuntu/crypto-compliance/backend"
+service_type   = "ClusterIP"
+service_port   = 3000
+data_services_namespace = "default"
+postgres_service_name   = "crypto-compliance-postgres-dev"
+valkey_service_name     = "crypto-compliance-valkey-dev"
+
+env = {
+  # Optional overrides. Default COMPLIANCE_DB_* and COMPLIANCE_VALKEY_* are
+  # automatically set from variables above.
+}

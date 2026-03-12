@@ -1,0 +1,50 @@
+// compliance/compliance.proto
+syntax = "proto3";
+
+package compliance;
+
+service ComplianceService {
+  rpc CheckAddressCompliance (CheckAddressComplianceRequest) returns (CheckAddressComplianceResponse) {}
+}
+
+message CheckAddressComplianceRequest {
+  string address = 1;
+  string network = 2;
+}
+
+enum ComplianceCheckStatus {
+  COMPLIANCE_CHECK_STATUS_UNSPECIFIED = 0;
+  COMPLIANCE_CHECK_STATUS_READY = 1;
+  COMPLIANCE_CHECK_STATUS_IN_PROGRESS = 2;
+}
+
+enum ComplianceAssessmentSource {
+  COMPLIANCE_ASSESSMENT_SOURCE_UNSPECIFIED = 0;
+  COMPLIANCE_ASSESSMENT_SOURCE_PROVIDER = 1;
+  COMPLIANCE_ASSESSMENT_SOURCE_BLACKLIST = 2;
+  COMPLIANCE_ASSESSMENT_SOURCE_WHITELIST = 3;
+}
+
+enum ComplianceRetrievalSource {
+  COMPLIANCE_RETRIEVAL_SOURCE_UNSPECIFIED = 0;
+  COMPLIANCE_RETRIEVAL_SOURCE_PROVIDER = 1;
+  COMPLIANCE_RETRIEVAL_SOURCE_CACHE = 2;
+  COMPLIANCE_RETRIEVAL_SOURCE_POLICY = 3;
+}
+
+message ComplianceSignal {
+  string category = 1;
+  double score = 2;
+}
+
+message CheckAddressComplianceResponse {
+  string address = 1;
+  string network = 2;
+  ComplianceCheckStatus status = 3;
+  optional double risk_score = 4;
+  repeated ComplianceSignal signals = 5;
+  optional string checked_at = 6;
+  ComplianceAssessmentSource assessment_source = 7;
+  bool is_high_risk = 8;
+  ComplianceRetrievalSource retrieval_source = 9;
+}

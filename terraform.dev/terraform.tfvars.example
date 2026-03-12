@@ -1,0 +1,13 @@
+namespace         = "default"
+postgres_password = "compliance"
+
+# Most settings now use sane defaults from variables.tf.
+# Override only what you need, for example:
+#
+# postgres = {
+#   image = "postgres:18-alpine"
+# }
+#
+# valkey = {
+#   image = "valkey/valkey:9.0.3-alpine"
+# }

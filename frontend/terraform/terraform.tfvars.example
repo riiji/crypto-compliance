@@ -1,0 +1,18 @@
+project_id       = "your-gcp-project-id"
+region           = "us-central1"
+gke_cluster_name = "crypto-compliance-gke"
+gke_location     = "us-central1-a"
+
+namespace = "crypto-compliance"
+app_name  = "crypto-compliance-frontend"
+image     = "ghcr.io/your-org/crypto-compliance-frontend:latest"
+
+replicas       = 1
+container_port = 3000
+service_port   = 80
+service_type   = "ClusterIP"
+
+env = {
+  BACKEND_API_BASE_URL          = "http://crypto-compliance-backend-svc.crypto-compliance.svc.cluster.local:80"
+  COMPLIANCE_POLICY_HMAC_SECRET = "change-me"
+}

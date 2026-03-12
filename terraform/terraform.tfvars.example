@@ -1,0 +1,21 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+common_labels = {
+  environment = "prod"
+  service     = "crypto-compliance"
+}
+
+gke_cluster_name      = "crypto-compliance-gke"
+gke_location          = "us-central1-a"
+gke_node_count        = 1
+gke_node_machine_type = "e2-standard-2"
+
+postgres_instance_name = "crypto-compliance-postgres"
+postgres_edition       = "ENTERPRISE"
+postgres_tier          = "db-f1-micro"
+postgres_password      = "change-me"
+
+valkey_instance_id = "crypto-compliance-valkey"
+valkey_location    = "us-central1"

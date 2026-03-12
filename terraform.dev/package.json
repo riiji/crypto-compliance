@@ -1,0 +1,7 @@
+{
+	"dependencies": {
+		"@nestjs/typeorm": "^11.0.0",
+		"typeorm": "^0.3.28",
+		"postgres": "^3.4.8"
+	}
+}
