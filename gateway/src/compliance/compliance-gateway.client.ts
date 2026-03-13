@@ -61,7 +61,7 @@ export class ComplianceGatewayClient implements OnModuleInit {
         }),
       );
 
-      return response.entries.map((entry) => ({
+      return this.normalizeRepeatedField(response.entries).map((entry) => ({
         address: entry.address,
         network: entry.network,
       }));
@@ -80,7 +80,7 @@ export class ComplianceGatewayClient implements OnModuleInit {
         }),
       );
 
-      return response.records.map((record) => ({
+      return this.normalizeRepeatedField(response.records).map((record) => ({
         address: record.address,
         network: record.network,
         policy: this.fromGrpcPolicy(record.policy),
@@ -312,5 +312,9 @@ export class ComplianceGatewayClient implements OnModuleInit {
       default:
         return new InternalServerErrorException(message);
     }
+  }
+
+  private normalizeRepeatedField<T>(value: T[] | undefined): T[] {
+    return Array.isArray(value) ? value : [];
   }
 }
