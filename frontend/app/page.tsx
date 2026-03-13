@@ -173,10 +173,7 @@ export default function Home() {
   const [history, setHistory] = useState<CompliancePolicyMutationHistoryRecord[]>(
     [],
   );
-  const [forms, setForms] = useState<Record<CompliancePolicy, FormState>>({
-    blacklist: createInitialFormState(),
-    whitelist: createInitialFormState(),
-  });
+  const [form, setForm] = useState<FormState>(createInitialFormState());
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -276,17 +273,10 @@ export default function Home() {
   );
 
   const setFormField = useCallback(
-    <Field extends keyof FormState>(
-      policy: CompliancePolicy,
-      field: Field,
-      value: FormState[Field],
-    ) => {
-      setForms((previous) => ({
+    <Field extends keyof FormState>(field: Field, value: FormState[Field]) => {
+      setForm((previous) => ({
         ...previous,
-        [policy]: {
-          ...previous[policy],
-          [field]: value,
-        },
+        [field]: value,
       }));
     },
     [],
@@ -343,7 +333,6 @@ export default function Home() {
 
   const handleAdd = useCallback(
     async (policy: CompliancePolicy) => {
-      const form = forms[policy];
       const network = resolveFormNetwork(form);
       if (!form.address.trim() || !network) {
         setError('Address and network are required');
@@ -374,16 +363,13 @@ export default function Home() {
         confirmPolicySwitch,
       });
       if (changed) {
-        setForms((previous) => ({
+        setForm((previous) => ({
           ...previous,
-          [policy]: {
-            ...previous[policy],
-            address: '',
-          },
+          address: '',
         }));
       }
     },
-    [forms, mutatePolicy, whitelistEntryKeys],
+    [form, mutatePolicy, whitelistEntryKeys],
   );
 
   const handleRemove = useCallback(
@@ -436,9 +422,14 @@ export default function Home() {
     setBlacklist([]);
     setWhitelist([]);
     setHistory([]);
+    setForm(createInitialFormState());
     setError(null);
     setIsLoading(false);
   }, []);
+
+  const selectedNetworkOption = getNetworkOptionByCaip2(form.network);
+  const canSubmit = Boolean(form.address.trim() && resolveFormNetwork(form));
+  const networkHintId = 'network-hint';
 
   if (!sessionReady) {
     return (
@@ -534,14 +525,89 @@ export default function Home() {
           </div>
         ) : null}
 
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Address Policy Actions
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Enter one address, choose the target network, then send it to
+                whitelist or blacklist.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
+                Whitelist {whitelist.length}
+              </span>
+              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700">
+                Blacklist {blacklist.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <div>
+              <label
+                className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                htmlFor="policy-address"
+              >
+                Address
+              </label>
+              <input
+                id="policy-address"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                onChange={(event) => setFormField('address', event.target.value)}
+                placeholder={
+                  selectedNetworkOption?.addressPlaceholder ?? 'Wallet address'
+                }
+                value={form.address}
+              />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Network
+              </label>
+              <div className="mt-2">
+                <NetworkCombobox
+                  describedById={networkHintId}
+                  disabled={isMutating}
+                  onChange={(nextValue) => setFormField('network', nextValue)}
+                  value={form.network}
+                />
+              </div>
+              <p className="mt-2 text-xs text-slate-500" id={networkHintId}>
+                {selectedNetworkOption
+                  ? `${selectedNetworkOption.description} Search by network name, ticker, asset symbol, or paste CAIP-2.`
+                  : 'Type a network name, ticker, asset symbol, or paste a custom CAIP-2 chain id.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-emerald-700 bg-emerald-600 px-4 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-emerald-300 disabled:bg-emerald-300"
+              disabled={isMutating || !canSubmit}
+              onClick={() => void handleAdd('whitelist')}
+              type="button"
+            >
+              {isMutating ? 'Saving...' : 'Add to Whitelist'}
+            </button>
+            <button
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-red-700 bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:border-red-300 disabled:bg-red-300"
+              disabled={isMutating || !canSubmit}
+              onClick={() => void handleAdd('blacklist')}
+              type="button"
+            >
+              {isMutating ? 'Saving...' : 'Add to Blacklist'}
+            </button>
+          </div>
+        </section>
+
         <section className="grid gap-4 md:grid-cols-2">
           {(['blacklist', 'whitelist'] as CompliancePolicy[]).map((policy) => {
             const entries = entriesByPolicy[policy];
-            const form = forms[policy];
-            const selectedNetworkOption = getNetworkOptionByCaip2(form.network);
-            const effectiveNetwork = resolveFormNetwork(form);
-            const canSubmit = Boolean(form.address.trim() && effectiveNetwork);
-            const networkHintId = `${policy}-network-hint`;
             const title = policy === 'blacklist' ? 'Blacklist' : 'Whitelist';
             const accent =
               policy === 'blacklist'
@@ -560,64 +626,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="grid gap-3">
-                  <input
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                    onChange={(event) =>
-                      setFormField(policy, 'address', event.target.value)
-                    }
-                    placeholder={
-                      selectedNetworkOption?.addressPlaceholder ?? 'Wallet address'
-                    }
-                    value={form.address}
-                  />
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Network
-                    </label>
-                    <div className="mt-2">
-                      <NetworkCombobox
-                        describedById={networkHintId}
-                        disabled={isMutating}
-                        onChange={(nextValue) =>
-                          setFormField(policy, 'network', nextValue)
-                        }
-                        value={form.network}
-                      />
-                    </div>
-
-                    <p className="mt-2 text-xs text-slate-500" id={networkHintId}>
-                      {selectedNetworkOption
-                        ? `${selectedNetworkOption.description} Search by network name, ticker, asset symbol, or paste CAIP-2.`
-                        : 'Type a network name, ticker, asset symbol, or paste a custom CAIP-2 chain id.'}
-                    </p>
-
-                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Sent to backend
-                      </p>
-                      {effectiveNetwork ? (
-                        <div className="mt-2">
-                          <NetworkMeta network={effectiveNetwork} />
-                        </div>
-                      ) : (
-                        <p className="mt-1 font-mono text-xs text-slate-900">
-                          Select a network
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    disabled={isMutating || !canSubmit}
-                    onClick={() => void handleAdd(policy)}
-                    type="button"
-                  >
-                    {isMutating ? 'Saving...' : `Add to ${title}`}
-                  </button>
-                </div>
-
-                <div className="mt-5 space-y-3">
+                <div className="space-y-3">
                   {isLoading && entries.length === 0 ? (
                     <p className="text-sm text-slate-500">Loading entries...</p>
                   ) : entries.length === 0 ? (
