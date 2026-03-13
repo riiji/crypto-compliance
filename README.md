@@ -30,14 +30,6 @@ Install these first:
 - [Docker Engine](https://docs.docker.com/engine/install/)
 - [K3s](https://k3s.io/) and the [K3s installation guide](https://docs.k3s.io/installation)
 - [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-- Node.js `24.14.0` or newer
-
-Then enable pnpm:
-
-```bash
-corepack enable
-corepack prepare pnpm@10.32.0 --activate
-```
 
 K3s uses containerd by default. You still want Docker for building and inspecting images.
 
@@ -129,9 +121,29 @@ For gRPC performance tests, use [`backend/loadtest/README.md`](backend/loadtest/
 
 ## Production Deployment On GCP
 
-### 1. Provision shared infrastructure
+### 1. Install prerequisites
 
-Bootstrap the state bucket first:
+On the machine you use for production provisioning and rollouts, install these first:
+
+- [Docker Engine](https://docs.docker.com/engine/install/)
+- [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+- `kubectl`
+
+Authenticate `gcloud` before you run any production Terraform or `kubectl` commands:
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_GCP_PROJECT_ID
+gcloud auth list
+```
+
+If `gcloud auth list` shows the account you want to use, continue.
+
+### 2. Provision shared infrastructure
+
+Apply the bootstrap stack first. It creates the GCS bucket used as the remote Terraform backend for the other production stacks:
 
 ```bash
 cd /home/ubuntu/crypto-compliance/terraform/bootstrap-state
@@ -154,7 +166,7 @@ terraform apply
 
 This root stack creates the GKE cluster, network, Cloud SQL, Memorystore, and the GitHub Actions deployer identity.
 
-### 2. Build and deploy the services
+### 3. Build and deploy the services
 
 Deployment paths:
 
@@ -199,7 +211,7 @@ Production notes:
 - The frontend talks to the gateway, not to the backend.
 - GitHub Actions runs backend migrations before it completes the backend rollout.
 
-### 3. Verify the production stack
+### 4. Verify the production stack
 
 Check the rollouts:
 
