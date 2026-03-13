@@ -206,6 +206,17 @@ terraform apply
 
 This root stack creates the GKE cluster, network, Cloud SQL, Memorystore, and the GitHub Actions deployer identity.
 
+Before applying `backend/terraform`, `gateway/terraform`, or `frontend/terraform`,
+verify the root remote state exports the GKE outputs:
+
+```bash
+cd /home/ubuntu/crypto-compliance/terraform
+terraform output gke_cluster_name
+terraform output gke_location
+```
+
+If either output is missing, re-apply the root stack without `-target`.
+
 ### 3. Build and deploy the services
 
 Deployment paths:

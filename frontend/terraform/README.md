@@ -17,8 +17,8 @@ cluster details from root Terraform remote state.
 - `data.google_container_cluster` for GKE endpoint/CA (Kubernetes provider auth)
 
 If the root remote state does not yet export `gke_cluster_name` and
-`gke_location`, either re-apply the root stack or set `gke_cluster_name` and
-`gke_location` explicitly in frontend Terraform variables.
+`gke_location`, re-apply the root stack first. This frontend stack expects
+those values to come from `crypto-compliance/prod/root`.
 
 ## Usage
 

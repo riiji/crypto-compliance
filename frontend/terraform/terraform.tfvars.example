@@ -2,8 +2,6 @@ project_id        = "your-gcp-project-id"
 region            = "us-central1"
 root_state_bucket = "vernal-parser-328009-crypto-compliance-tfstate-prod"
 root_state_prefix = "crypto-compliance/prod/root"
-# gke_cluster_name = "crypto-compliance-gke"
-# gke_location     = "us-central1-a"
 
 namespace        = "crypto-compliance"
 create_namespace = true
