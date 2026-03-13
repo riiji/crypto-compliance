@@ -7,6 +7,9 @@ cluster details from root Terraform remote state.
 
 - `kubernetes_deployment_v1` for frontend pods
 - `kubernetes_service_v1` for frontend traffic
+- `kubernetes_manifest` `BackendConfig` for frontend health checks
+- `kubernetes_ingress_v1` for public HTTP access with a GKE external IP
+- Namespace resolution (create or read existing)
 
 ## State and data lookups
 
@@ -39,3 +42,16 @@ terraform init -migrate-state -backend-config=backend.hcl
 
 - `project_id`
 - `root_state_bucket`
+
+## Public ingress
+
+This stack creates a public GKE ingress for the frontend. After `terraform apply`,
+get the external address with:
+
+```bash
+terraform output ingress_load_balancer_ip
+terraform output ingress_load_balancer_hostname
+```
+
+Use `ingress_host` if you want a host-based rule, and `ingress_annotations` if
+you want to attach a reserved global static IP.

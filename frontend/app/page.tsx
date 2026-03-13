@@ -1,6 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CUSTOM_NETWORK_OPTION_ID,
+  DEFAULT_NETWORK_OPTION_ID,
+  getNetworkOptionByCaip2,
+  getNetworkOptionById,
+  NETWORK_OPTIONS,
+} from '@/lib/network-options';
 
 type CompliancePolicy = 'blacklist' | 'whitelist';
 
@@ -21,7 +28,9 @@ interface CompliancePolicyMutationHistoryRecord {
 
 interface FormState {
   address: string;
-  network: string;
+  networkMode: 'preset' | 'custom';
+  networkPresetId: string;
+  customNetwork: string;
 }
 
 interface LoginResponse {
@@ -44,9 +53,34 @@ class RequestError extends Error {
   }
 }
 
-const DEFAULT_NETWORK = 'eip155:1';
 const USERNAME_STORAGE_KEY = 'compliance.console.username';
 const TOKEN_STORAGE_KEY = 'compliance.console.jwt';
+
+function createInitialFormState(): FormState {
+  return {
+    address: '',
+    networkMode: 'preset',
+    networkPresetId: DEFAULT_NETWORK_OPTION_ID,
+    customNetwork: '',
+  };
+}
+
+function resolveFormNetwork(form: FormState): string {
+  if (form.networkMode === 'custom') {
+    return form.customNetwork.trim();
+  }
+
+  return getNetworkOptionById(form.networkPresetId)?.caip2 ?? '';
+}
+
+function describeNetwork(network: string): string {
+  const option = getNetworkOptionByCaip2(network);
+  if (!option) {
+    return 'Custom network';
+  }
+
+  return option.label;
+}
 
 async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text();
@@ -125,8 +159,8 @@ export default function Home() {
     [],
   );
   const [forms, setForms] = useState<Record<CompliancePolicy, FormState>>({
-    blacklist: { address: '', network: DEFAULT_NETWORK },
-    whitelist: { address: '', network: DEFAULT_NETWORK },
+    blacklist: createInitialFormState(),
+    whitelist: createInitialFormState(),
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -227,13 +261,37 @@ export default function Home() {
   );
 
   const setFormField = useCallback(
-    (policy: CompliancePolicy, field: keyof FormState, value: string) => {
+    <Field extends keyof FormState>(
+      policy: CompliancePolicy,
+      field: Field,
+      value: FormState[Field],
+    ) => {
       setForms((previous) => ({
         ...previous,
         [policy]: {
           ...previous[policy],
           [field]: value,
         },
+      }));
+    },
+    [],
+  );
+
+  const setNetworkSelection = useCallback(
+    (policy: CompliancePolicy, nextValue: string) => {
+      setForms((previous) => ({
+        ...previous,
+        [policy]:
+          nextValue === CUSTOM_NETWORK_OPTION_ID
+            ? {
+                ...previous[policy],
+                networkMode: 'custom',
+              }
+            : {
+                ...previous[policy],
+                networkMode: 'preset',
+                networkPresetId: nextValue,
+              },
       }));
     },
     [],
@@ -291,14 +349,15 @@ export default function Home() {
   const handleAdd = useCallback(
     async (policy: CompliancePolicy) => {
       const form = forms[policy];
-      if (!form.address.trim() || !form.network.trim()) {
+      const network = resolveFormNetwork(form);
+      if (!form.address.trim() || !network) {
         setError('Address and network are required');
         return;
       }
 
       const payload: CompliancePolicyEntry = {
         address: form.address.trim(),
-        network: form.network.trim(),
+        network,
       };
 
       let confirmPolicySwitch = false;
@@ -483,6 +542,13 @@ export default function Home() {
         <section className="grid gap-4 md:grid-cols-2">
           {(['blacklist', 'whitelist'] as CompliancePolicy[]).map((policy) => {
             const entries = entriesByPolicy[policy];
+            const form = forms[policy];
+            const selectedNetworkOption =
+              form.networkMode === 'preset'
+                ? getNetworkOptionById(form.networkPresetId)
+                : undefined;
+            const effectiveNetwork = resolveFormNetwork(form);
+            const canSubmit = Boolean(form.address.trim() && effectiveNetwork);
             const title = policy === 'blacklist' ? 'Blacklist' : 'Whitelist';
             const accent =
               policy === 'blacklist'
@@ -507,20 +573,64 @@ export default function Home() {
                     onChange={(event) =>
                       setFormField(policy, 'address', event.target.value)
                     }
-                    placeholder="Wallet address"
-                    value={forms[policy].address}
-                  />
-                  <input
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                    onChange={(event) =>
-                      setFormField(policy, 'network', event.target.value)
+                    placeholder={
+                      selectedNetworkOption?.addressPlaceholder ?? 'Wallet address'
                     }
-                    placeholder="CAIP-2 network"
-                    value={forms[policy].network}
+                    value={form.address}
                   />
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Network
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                      onChange={(event) =>
+                        setNetworkSelection(policy, event.target.value)
+                      }
+                      value={
+                        form.networkMode === 'custom'
+                          ? CUSTOM_NETWORK_OPTION_ID
+                          : form.networkPresetId
+                      }
+                    >
+                      {NETWORK_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_NETWORK_OPTION_ID}>
+                        Other / custom CAIP-2
+                      </option>
+                    </select>
+
+                    <p className="mt-2 text-xs text-slate-500">
+                      {selectedNetworkOption?.description ??
+                        'Use a custom CAIP-2 chain id when the target network is not in the preset list.'}
+                    </p>
+
+                    {form.networkMode === 'custom' ? (
+                      <input
+                        className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        onChange={(event) =>
+                          setFormField(policy, 'customNetwork', event.target.value)
+                        }
+                        placeholder="namespace:reference"
+                        value={form.customNetwork}
+                      />
+                    ) : null}
+
+                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Sent to backend
+                      </p>
+                      <p className="mt-1 font-mono text-xs text-slate-900">
+                        {effectiveNetwork || 'Select a network'}
+                      </p>
+                    </div>
+                  </div>
                   <button
                     className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    disabled={isMutating}
+                    disabled={isMutating || !canSubmit}
                     onClick={() => void handleAdd(policy)}
                     type="button"
                   >
@@ -540,6 +650,9 @@ export default function Home() {
                         className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
                       >
                         <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-600">
+                            {describeNetwork(entry.network)}
+                          </p>
                           <p className="truncate font-mono text-sm text-slate-900">
                             {entry.address}
                           </p>
@@ -610,6 +723,9 @@ export default function Home() {
                         {record.action}
                       </td>
                       <td className="px-3 py-3 align-top">
+                        <div className="text-xs font-medium text-slate-600">
+                          {describeNetwork(record.network)}
+                        </div>
                         <div className="font-mono text-xs text-slate-900">
                           {record.address}
                         </div>

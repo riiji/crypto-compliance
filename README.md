@@ -27,11 +27,24 @@ Infrastructure directories:
 
 Install these first:
 
+- [Git](https://git-scm.com/downloads)
 - [Docker Engine](https://docs.docker.com/engine/install/)
 - [K3s](https://k3s.io/) and the [K3s installation guide](https://docs.k3s.io/installation)
 - [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 
 K3s uses containerd by default. You still want Docker for building and inspecting images.
+
+### Clone the repository
+
+Clone the project before you start the local setup:
+
+```bash
+cd /home/ubuntu
+git clone <repository-url> crypto-compliance
+cd /home/ubuntu/crypto-compliance
+```
+
+The commands below assume the repository lives at `/home/ubuntu/crypto-compliance`. If you clone it into another directory, adjust the paths in the examples.
 
 ### Prepare kubeconfig for K3s
 
@@ -94,7 +107,24 @@ terraform apply
 
 These dev stacks mount your local source tree into Kubernetes pods and run the services in watch mode.
 
-### 3. Access the services
+### 3. Run backend migrations
+
+After the backend dev pod is ready, run the TypeORM migrations inside the pod:
+
+```bash
+kubectl -n default rollout status deployment/crypto-compliance-backend-dev
+kubectl -n default exec deployment/crypto-compliance-backend-dev -- sh -lc 'cd /workspace && npm run db:migration:run'
+```
+
+To inspect migration status:
+
+```bash
+kubectl -n default exec deployment/crypto-compliance-backend-dev -- sh -lc 'cd /workspace && npm run db:migration:show'
+```
+
+If you changed `namespace` or `app_name` in `backend/terraform.dev/terraform.tfvars`, adjust the `kubectl` commands accordingly.
+
+### 4. Access the services
 
 Port-forward the services from another terminal:
 
@@ -125,6 +155,7 @@ For gRPC performance tests, use [`backend/loadtest/README.md`](backend/loadtest/
 
 On the machine you use for production provisioning and rollouts, install these first:
 
+- [Git](https://git-scm.com/downloads)
 - [Docker Engine](https://docs.docker.com/engine/install/)
 - [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
@@ -207,7 +238,7 @@ terraform apply
 Production notes:
 
 - The backend is internal by default. It exposes gRPC as a Kubernetes service.
-- The gateway owns public HTTP ingress.
+- The gateway and frontend each have their own public GKE Ingress resources.
 - The frontend talks to the gateway, not to the backend.
 - GitHub Actions runs backend migrations before it completes the backend rollout.
 

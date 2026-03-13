@@ -23,9 +23,9 @@ locals {
   )
 
   default_env = {
-    PORT                        = tostring(var.container_port)
-    COMPLIANCE_BACKEND_GRPC_URL = local.effective_backend_grpc_url
-    COMPLIANCE_ADMIN_JWT_SECRET = var.admin_jwt_secret
+    PORT                            = tostring(var.container_port)
+    COMPLIANCE_BACKEND_GRPC_URL     = local.effective_backend_grpc_url
+    COMPLIANCE_ADMIN_JWT_SECRET     = var.admin_jwt_secret
     COMPLIANCE_INTERNAL_HMAC_SECRET = var.internal_hmac_secret
   }
 
@@ -118,7 +118,6 @@ resource "kubernetes_service_v1" "app" {
 
   lifecycle {
     ignore_changes = [
-      metadata[0].annotations["cloud.google.com/neg"],
       metadata[0].annotations["cloud.google.com/neg-status"],
     ]
   }
@@ -130,6 +129,9 @@ resource "kubernetes_service_v1" "app" {
     annotations = {
       "cloud.google.com/backend-config" = jsonencode({
         default = local.http_backend_config_name
+      })
+      "cloud.google.com/neg" = jsonencode({
+        ingress = true
       })
     }
   }

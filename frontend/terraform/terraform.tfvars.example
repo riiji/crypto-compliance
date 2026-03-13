@@ -1,16 +1,26 @@
-project_id       = "your-gcp-project-id"
-region           = "us-central1"
+project_id        = "your-gcp-project-id"
+region            = "us-central1"
 root_state_bucket = "vernal-parser-328009-crypto-compliance-tfstate-prod"
 root_state_prefix = "crypto-compliance/prod/root"
 
-namespace = "crypto-compliance"
-app_name  = "crypto-compliance-frontend"
-image     = "ghcr.io/your-org/crypto-compliance-frontend:latest"
+namespace        = "crypto-compliance"
+create_namespace = true
+
+app_name = "crypto-compliance-frontend"
+image    = "ghcr.io/your-org/crypto-compliance-frontend:latest"
 
 replicas       = 1
 container_port = 3000
 service_port   = 80
 service_type   = "ClusterIP"
+
+# ingress_class_name = "gce"
+# ingress_host       = "console.example.com"
+# ingress_path       = "/"
+# ingress_path_type  = "Prefix"
+# ingress_annotations = {
+#   "kubernetes.io/ingress.global-static-ip-name" = "crypto-compliance-frontend-ip"
+# }
 
 env = {
   BACKEND_API_BASE_URL = "http://crypto-compliance-gateway-svc.crypto-compliance.svc.cluster.local:80"
