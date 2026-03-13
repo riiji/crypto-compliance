@@ -20,6 +20,20 @@ variable "root_state_prefix" {
   default     = "crypto-compliance/prod/root"
 }
 
+variable "gke_cluster_name" {
+  description = "Optional explicit GKE cluster name override when root remote state does not export it."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "gke_location" {
+  description = "Optional explicit GKE cluster location override when root remote state does not export it."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "namespace" {
   description = "Kubernetes namespace for frontend resources."
   type        = string
