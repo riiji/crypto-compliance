@@ -5,10 +5,10 @@
 // source: compliance/compliance.proto
 
 /* eslint-disable */
-import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
-import { Observable } from "rxjs";
+import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
+import { Observable } from 'rxjs';
 
-export const protobufPackage = "compliance";
+export const protobufPackage = 'compliance';
 
 /** compliance/compliance.proto */
 
@@ -35,6 +35,20 @@ export enum ComplianceRetrievalSource {
   UNRECOGNIZED = -1,
 }
 
+export enum CompliancePolicy {
+  COMPLIANCE_POLICY_UNSPECIFIED = 0,
+  COMPLIANCE_POLICY_BLACKLIST = 1,
+  COMPLIANCE_POLICY_WHITELIST = 2,
+  UNRECOGNIZED = -1,
+}
+
+export enum CompliancePolicyAction {
+  COMPLIANCE_POLICY_ACTION_UNSPECIFIED = 0,
+  COMPLIANCE_POLICY_ACTION_ADD = 1,
+  COMPLIANCE_POLICY_ACTION_REMOVE = 2,
+  UNRECOGNIZED = -1,
+}
+
 export interface CheckAddressComplianceRequest {
   address: string;
   network: string;
@@ -57,10 +71,91 @@ export interface CheckAddressComplianceResponse {
   retrievalSource: ComplianceRetrievalSource;
 }
 
-export const COMPLIANCE_PACKAGE_NAME = "compliance";
+export interface CompliancePolicyEntry {
+  address: string;
+  network: string;
+}
+
+export interface ListCompliancePoliciesRequest {
+  policy: CompliancePolicy;
+}
+
+export interface ListCompliancePoliciesResponse {
+  entries: CompliancePolicyEntry[];
+}
+
+export interface ListCompliancePolicyMutationHistoryRequest {
+  limit?: number | undefined;
+}
+
+export interface CompliancePolicyMutationHistoryRecord {
+  address: string;
+  network: string;
+  policy: CompliancePolicy;
+  action: CompliancePolicyAction;
+  changed: boolean;
+  idempotencyKey: string;
+  createdAt: string;
+}
+
+export interface ListCompliancePolicyMutationHistoryResponse {
+  records: CompliancePolicyMutationHistoryRecord[];
+}
+
+export interface SecureMutateCompliancePolicyRequest {
+  address: string;
+  network: string;
+  policy: CompliancePolicy;
+  action: CompliancePolicyAction;
+  confirmPolicySwitch: boolean;
+  idempotencyKey?: string | undefined;
+  timestamp: string;
+  signature: string;
+  requestedBy?: string | undefined;
+}
+
+export interface TrustedMutateCompliancePolicyRequest {
+  address: string;
+  network: string;
+  policy: CompliancePolicy;
+  action: CompliancePolicyAction;
+  confirmPolicySwitch: boolean;
+  idempotencyKey?: string | undefined;
+  requestedBy?: string | undefined;
+}
+
+export interface CompliancePolicyMutationResponse {
+  address: string;
+  network: string;
+  policy: CompliancePolicy;
+  action: CompliancePolicyAction;
+  changed: boolean;
+  idempotencyKey: string;
+  replayed: boolean;
+}
+
+export const COMPLIANCE_PACKAGE_NAME = 'compliance';
 
 export interface ComplianceServiceClient {
-  checkAddressCompliance(request: CheckAddressComplianceRequest): Observable<CheckAddressComplianceResponse>;
+  checkAddressCompliance(
+    request: CheckAddressComplianceRequest,
+  ): Observable<CheckAddressComplianceResponse>;
+
+  listCompliancePolicies(
+    request: ListCompliancePoliciesRequest,
+  ): Observable<ListCompliancePoliciesResponse>;
+
+  listCompliancePolicyMutationHistory(
+    request: ListCompliancePolicyMutationHistoryRequest,
+  ): Observable<ListCompliancePolicyMutationHistoryResponse>;
+
+  secureMutateCompliancePolicy(
+    request: SecureMutateCompliancePolicyRequest,
+  ): Observable<CompliancePolicyMutationResponse>;
+
+  trustedMutateCompliancePolicy(
+    request: TrustedMutateCompliancePolicyRequest,
+  ): Observable<CompliancePolicyMutationResponse>;
 }
 
 export interface ComplianceServiceController {
@@ -70,21 +165,69 @@ export interface ComplianceServiceController {
     | Promise<CheckAddressComplianceResponse>
     | Observable<CheckAddressComplianceResponse>
     | CheckAddressComplianceResponse;
+
+  listCompliancePolicies(
+    request: ListCompliancePoliciesRequest,
+  ):
+    | Promise<ListCompliancePoliciesResponse>
+    | Observable<ListCompliancePoliciesResponse>
+    | ListCompliancePoliciesResponse;
+
+  listCompliancePolicyMutationHistory(
+    request: ListCompliancePolicyMutationHistoryRequest,
+  ):
+    | Promise<ListCompliancePolicyMutationHistoryResponse>
+    | Observable<ListCompliancePolicyMutationHistoryResponse>
+    | ListCompliancePolicyMutationHistoryResponse;
+
+  secureMutateCompliancePolicy(
+    request: SecureMutateCompliancePolicyRequest,
+  ):
+    | Promise<CompliancePolicyMutationResponse>
+    | Observable<CompliancePolicyMutationResponse>
+    | CompliancePolicyMutationResponse;
+
+  trustedMutateCompliancePolicy(
+    request: TrustedMutateCompliancePolicyRequest,
+  ):
+    | Promise<CompliancePolicyMutationResponse>
+    | Observable<CompliancePolicyMutationResponse>
+    | CompliancePolicyMutationResponse;
 }
 
 export function ComplianceServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["checkAddressCompliance"];
+    const grpcMethods: string[] = [
+      'checkAddressCompliance',
+      'listCompliancePolicies',
+      'listCompliancePolicyMutationHistory',
+      'secureMutateCompliancePolicy',
+      'trustedMutateCompliancePolicy',
+    ];
     for (const method of grpcMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcMethod("ComplianceService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcMethod('ComplianceService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
     const grpcStreamMethods: string[] = [];
     for (const method of grpcStreamMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcStreamMethod("ComplianceService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcStreamMethod('ComplianceService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
   };
 }
 
-export const COMPLIANCE_SERVICE_NAME = "ComplianceService";
+export const COMPLIANCE_SERVICE_NAME = 'ComplianceService';

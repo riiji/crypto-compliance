@@ -14,38 +14,16 @@ variable "host_repo_path" {
   type        = string
 }
 
-variable "service_port" {
-  description = "Kubernetes service port for the dev service."
-  type        = number
-}
-
 variable "grpc_service_port" {
   description = "Kubernetes service port for gRPC traffic."
   type        = number
   default     = 50051
 }
 
-variable "grpc_ingress_path" {
-  description = "Ingress path prefix routed to the gRPC service."
-  type        = string
-  default     = "/compliance.ComplianceService"
-
-  validation {
-    condition     = startswith(var.grpc_ingress_path, "/")
-    error_message = "grpc_ingress_path must start with '/'."
-  }
-}
-
 variable "service_type" {
   description = "Kubernetes Service type."
   type        = string
   default     = "ClusterIP"
-}
-
-variable "ingress_annotations" {
-  description = "Additional annotations for ingress."
-  type        = map(string)
-  default     = {}
 }
 
 variable "image" {

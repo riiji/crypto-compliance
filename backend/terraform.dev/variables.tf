@@ -29,12 +29,6 @@ variable "host_repo_path" {
   default     = "/home/ubuntu/crypto-compliance/backend"
 }
 
-variable "ingress_annotations" {
-  description = "Additional annotations for backend dev ingress."
-  type        = map(string)
-  default     = {}
-}
-
 variable "image" {
   description = "Container image for backend dev pod (for example node:24.14.0 or an Artifact Registry image)."
   type        = string
@@ -48,32 +42,15 @@ variable "image_pull_policy" {
 }
 
 variable "service_type" {
-  description = "Kubernetes Service type."
+  description = "Kubernetes Service type for the backend gRPC service."
   type        = string
   default     = "ClusterIP"
-}
-
-variable "service_port" {
-  description = "Backend dev service port."
-  type        = number
-  default     = 3000
 }
 
 variable "grpc_service_port" {
   description = "Backend dev gRPC service port."
   type        = number
   default     = 50051
-}
-
-variable "grpc_ingress_path" {
-  description = "Ingress path prefix routed to the backend gRPC service."
-  type        = string
-  default     = "/compliance.ComplianceService"
-
-  validation {
-    condition     = startswith(var.grpc_ingress_path, "/")
-    error_message = "grpc_ingress_path must start with '/'."
-  }
 }
 
 variable "data_services_namespace" {

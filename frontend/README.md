@@ -9,7 +9,8 @@ Next.js app for managing compliance blacklist/whitelist entries.
 - View policy mutation history
 
 Frontend mutations go through unsigned admin policy endpoints.
-Signed HMAC endpoints remain on the backend for service-to-service callers only.
+The HTTP surface is provided by the separate `gateway/` service, which forwards
+requests to the gRPC backend.
 
 ## Requirements
 
@@ -18,7 +19,7 @@ Signed HMAC endpoints remain on the backend for service-to-service callers only.
 
 ## Required Environment Variables
 
-- `BACKEND_API_BASE_URL` (default: `http://localhost:3000`)
+- `BACKEND_API_BASE_URL` (default: `http://localhost:3001`)
 
 ## Local Run
 

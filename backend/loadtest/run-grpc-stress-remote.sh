@@ -4,6 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+COMMON_SH="${SCRIPT_DIR}/lib/common.sh"
+
+# shellcheck source=./lib/common.sh
+source "${COMMON_SH}"
 
 KUBECTL_BIN="${KUBECTL_BIN:-kubectl}"
 NAMESPACE="${NAMESPACE:-default}"
@@ -27,21 +31,6 @@ REMOTE_RESULTS_ROOT="${REMOTE_RESULTS_ROOT:-/results}"
 LOCAL_RESULTS_ROOT="${LOCAL_RESULTS_ROOT:-${SCRIPT_DIR}/results}"
 
 runner_created=0
-
-log() {
-  printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
-}
-
-run_cmd() {
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '[DRY_RUN] '
-    printf '%q ' "$@"
-    printf '\n'
-    return 0
-  fi
-
-  "$@"
-}
 
 cleanup() {
   if (( runner_created == 0 )) || [[ "${KEEP_RUNNER}" == "1" ]] || [[ "${DRY_RUN}" == "1" ]]; then
@@ -108,28 +97,26 @@ copy_test_inputs() {
     "${KUBECTL_BIN}" -n "${NAMESPACE}" exec "${RUNNER_NAME}" -- \
     mkdir -p \
     "${REMOTE_WORKDIR}/loadtest/data" \
+    "${REMOTE_WORKDIR}/loadtest/lib" \
     "${REMOTE_WORKDIR}/src/compliance" \
     "${REMOTE_RESULTS_ROOT}"
 
-  run_cmd \
-    "${KUBECTL_BIN}" -n "${NAMESPACE}" cp \
-    "${SCRIPT_DIR}/run-grpc-stress.sh" \
-    "${NAMESPACE}/${RUNNER_NAME}:${REMOTE_WORKDIR}/loadtest/run-grpc-stress.sh"
-
-  run_cmd \
-    "${KUBECTL_BIN}" -n "${NAMESPACE}" cp \
-    "${SCRIPT_DIR}/parse-ghz-report.mjs" \
-    "${NAMESPACE}/${RUNNER_NAME}:${REMOTE_WORKDIR}/loadtest/parse-ghz-report.mjs"
-
-  run_cmd \
-    "${KUBECTL_BIN}" -n "${NAMESPACE}" cp \
-    "${SCRIPT_DIR}/data/hot-requests.json" \
-    "${NAMESPACE}/${RUNNER_NAME}:${REMOTE_WORKDIR}/loadtest/data/hot-requests.json"
-
-  run_cmd \
-    "${KUBECTL_BIN}" -n "${NAMESPACE}" cp \
-    "${BACKEND_DIR}/src/compliance/compliance.proto" \
-    "${NAMESPACE}/${RUNNER_NAME}:${REMOTE_WORKDIR}/src/compliance/compliance.proto"
+  local copy_pairs=(
+    "${SCRIPT_DIR}/run-grpc-stress.sh:${REMOTE_WORKDIR}/loadtest/run-grpc-stress.sh"
+    "${SCRIPT_DIR}/lib/common.sh:${REMOTE_WORKDIR}/loadtest/lib/common.sh"
+    "${SCRIPT_DIR}/parse-ghz-report.mjs:${REMOTE_WORKDIR}/loadtest/parse-ghz-report.mjs"
+    "${SCRIPT_DIR}/data/hot-requests.json:${REMOTE_WORKDIR}/loadtest/data/hot-requests.json"
+    "${BACKEND_DIR}/src/compliance/compliance.proto:${REMOTE_WORKDIR}/src/compliance/compliance.proto"
+  )
+  local copy_pair
+  for copy_pair in "${copy_pairs[@]}"; do
+    local source_path="${copy_pair%%:*}"
+    local target_path="${copy_pair#*:}"
+    run_cmd \
+      "${KUBECTL_BIN}" -n "${NAMESPACE}" cp \
+      "${source_path}" \
+      "${NAMESPACE}/${RUNNER_NAME}:${target_path}"
+  done
 }
 
 run_remote_loadtest() {
@@ -245,6 +232,7 @@ copy_results_if_present() {
 }
 
 main() {
+  require_command "${KUBECTL_BIN}"
   discover_target
   log "Target: ${TARGET}"
   create_runner_pod

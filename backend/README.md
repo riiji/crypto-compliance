@@ -6,14 +6,11 @@ NestJS backend for compliance checks and policy management.
 
 Implemented:
 - gRPC endpoint: `ComplianceService.CheckAddressCompliance`.
-- HTTP policy management:
-  - `GET /compliance/policies/blacklist`
-  - `GET /compliance/policies/whitelist`
-  - `GET /compliance/policies/history?limit=...`
-  - Signed service endpoints: `POST|DELETE /compliance/policies/blacklist`
-  - Signed service endpoints: `POST|DELETE /compliance/policies/whitelist`
-  - Trusted admin endpoints: `POST|DELETE /compliance/admin/policies/blacklist`
-  - Trusted admin endpoints: `POST|DELETE /compliance/admin/policies/whitelist`
+- gRPC policy management:
+  - `ListCompliancePolicies`
+  - `ListCompliancePolicyMutationHistory`
+  - `SecureMutateCompliancePolicy`
+  - `TrustedMutateCompliancePolicy`
 - Provider execution path through BullMQ queue (not direct in-request provider calls).
 - Active Postgres persistence model:
   - `compliance_address_policies`
@@ -37,7 +34,6 @@ From repository root:
 
 ```bash
 pnpm --dir backend install
-pnpm --dir backend proto:gen
 pnpm --dir backend db:migration:run
 pnpm --dir backend start:dev
 ```
@@ -57,7 +53,7 @@ Optional overrides:
 - `COMPLIANCE_POLICY_SIGNATURE_MAX_FUTURE_SECONDS`
 - `COMPLIANCE_IDEMPOTENCY_POLL_INTERVAL_MS`
 - `COMPLIANCE_IDEMPOTENCY_WAIT_TIMEOUT_MS`
-- `PORT`
+- `COMPLIANCE_GRPC_PORT`
 
 ## Verification Commands
 
@@ -72,6 +68,5 @@ pnpm --dir backend test:e2e
 
 ## Notes
 
-- Existing signed HMAC policy endpoints remain available for service-to-service integrations.
-- Unsigned admin policy endpoints exist for trusted UI/backend management flows.
+- HTTP policy endpoints now live in the separate `gateway/` service.
 - Legacy tables/entities (`compliance_check_records`, `compliance_check_signals`, `compliance_provider_responses`) may exist in DB schema history but are not used by runtime code.

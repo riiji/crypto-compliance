@@ -1,0 +1,13 @@
+namespace      = "default"
+app_name       = "crypto-compliance-gateway-dev"
+host_repo_path = "/home/ubuntu/crypto-compliance/gateway"
+image          = "node:24.14.0"
+# Example Artifact Registry image:
+# image = "us-central1-docker.pkg.dev/<project-id>/crypto-compliance/crypto-compliance-gateway:latest"
+image_pull_policy = "IfNotPresent"
+service_type   = "ClusterIP"
+service_port   = 3000
+
+env = {
+  # COMPLIANCE_BACKEND_GRPC_URL is set automatically to the backend dev service by default.
+}

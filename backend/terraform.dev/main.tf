@@ -16,17 +16,13 @@ locals {
 module "service" {
   source = "./modules/dev_service"
 
-  app_name            = var.app_name
-  namespace           = var.namespace
-  host_repo_path      = var.host_repo_path
-  grpc_ingress_path   = var.grpc_ingress_path
-  grpc_service_port   = var.grpc_service_port
-  ingress_annotations = var.ingress_annotations
-  image               = var.image
-  image_pull_policy   = var.image_pull_policy
-
-  service_port = var.service_port
-  service_type = var.service_type
+  app_name          = var.app_name
+  namespace         = var.namespace
+  host_repo_path    = var.host_repo_path
+  grpc_service_port = var.grpc_service_port
+  image             = var.image
+  image_pull_policy = var.image_pull_policy
+  service_type      = var.service_type
 
   env = local.effective_env
 

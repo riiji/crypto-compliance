@@ -6,7 +6,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ComplianceModule } from './compliance/compliance.module';
 import { createTypeOrmConfig } from './database/typeorm.config';
 import { createBullmqConfig } from './queue/bullmq.config';
-import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -15,7 +14,6 @@ import { HealthController } from './health.controller';
     BullModule.forRoot(createBullmqConfig()),
     ComplianceModule,
   ],
-  controllers: [HealthController],
   providers: [
     {
       provide: APP_FILTER,

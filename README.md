@@ -3,6 +3,7 @@
 Repository structure:
 
 - `backend/` - NestJS backend service code and Terraform deployment.
+- `gateway/` - NestJS HTTP gateway and Terraform deployment.
 - `frontend/` - frontend UI project and Terraform deployment.
 - `terraform/` - production/shared infrastructure on Google Cloud (GKE, Cloud SQL Postgres 18, Memorystore for Valkey).
 - `terraform.dev/` - lightweight development data services on Kubernetes.
@@ -40,7 +41,8 @@ terraform apply
 cd /home/ubuntu/crypto-compliance/terraform
 cp terraform.tfvars.example terraform.tfvars
 cp backend.hcl.example backend.hcl
-# edit project_id, passwords, sizing, regions/zones
+# edit project_id, postgres_password, and region/zone
+# update terraform/main.tf if you want to change fixed stack defaults
 terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
@@ -56,7 +58,7 @@ This creates module-based infrastructure:
 
 Note: default Cloud SQL edition is `ENTERPRISE` so `db-custom-*` tiers work. If you switch to `ENTERPRISE_PLUS`, use a `db-perf-optimized-N-*` tier.
 
-This root stack is the source of truth for backend/frontend production lookups through `terraform_remote_state`.
+This root stack is the source of truth for backend/gateway/frontend production lookups through `terraform_remote_state`.
 GCS backend is configured via partial `backend "gcs"` and `backend.hcl` per HashiCorp docs:
 https://developer.hashicorp.com/terraform/language/backend/gcs
 
@@ -78,7 +80,22 @@ Backend stack resolves at apply time:
 - Postgres connection defaults from root state outputs
 - Valkey connection defaults from root state outputs
 
-## 4) Deploy frontend to GKE (`frontend/terraform`)
+## 4) Deploy gateway to GKE (`gateway/terraform`)
+
+```bash
+cd /home/ubuntu/crypto-compliance/gateway/terraform
+cp terraform.tfvars.example terraform.tfvars
+cp backend.hcl.example backend.hcl
+# set image, project_id, root_state_bucket, and ingress settings
+terraform init -migrate-state -backend-config=backend.hcl
+terraform plan
+terraform apply
+```
+
+Gateway stack resolves the backend gRPC DNS target automatically unless you
+override `backend_grpc_url`.
+
+## 5) Deploy frontend to GKE (`frontend/terraform`)
 
 ```bash
 cd /home/ubuntu/crypto-compliance/frontend/terraform
@@ -95,7 +112,8 @@ terraform apply
 1. Bootstrap state bucket (`terraform/bootstrap-state/`)
 2. Root infra (`terraform/`)
 3. Backend (`backend/terraform`)
-4. Frontend (`frontend/terraform`)
+4. Gateway (`gateway/terraform`)
+5. Frontend (`frontend/terraform`)
 
 ## Development
 
@@ -103,6 +121,7 @@ For Kubernetes hot-reload development workflows:
 
 - `terraform.dev/` (dev Postgres + Valkey)
 - `backend/terraform.dev/`
+- `gateway/terraform.dev/`
 - `frontend/terraform.dev/`
 
 ## GitHub Actions CI/CD (GKE)
@@ -113,14 +132,15 @@ Workflows:
 
 `build-push-images.yml`:
 - Triggered on push to `main` and manually via **Actions** UI.
-- Runs backend tests + frontend lint.
-- Builds backend/frontend images and pushes to Artifact Registry.
+- Runs backend tests, gateway tests, and frontend lint.
+- Builds backend/gateway/frontend images and pushes to Artifact Registry.
 - Manual run supports custom `image_tag` and optional `push_latest`.
 
 `deploy-gke.yml`:
 - Triggered manually via **Actions** UI with `image_tag`.
 - Also auto-runs after successful **push-triggered** `build-push-images.yml` and deploys the matching short-SHA tag.
 - Updates backend image, runs backend TypeORM migrations against production DB, then waits for backend rollout.
+- Updates gateway deployment and waits for rollout.
 - Updates frontend deployment and waits for rollout.
 
 Required repository secrets:
@@ -137,7 +157,7 @@ GitHub Actions deployer service account is now provisioned by root Terraform:
 - Artifact Registry repository is created by root Terraform module:
   - defaults: `crypto-compliance` in `us-central1`
 - explicit repository IAM binding:
-  - repository: `crypto-compliance` in `us-central1` (configurable via terraform vars)
+  - repository: `crypto-compliance` in the configured `region`
   - role: `roles/artifactregistry.writer`
 
 Create a JSON key for that service account and store it as `GCP_SA_KEY`:
@@ -159,4 +179,5 @@ Recommended repository variables (defaults are set in workflow):
 Expected Kubernetes deployment names:
 
 - backend: `crypto-compliance-backend`
+- gateway: `crypto-compliance-gateway`
 - frontend: `crypto-compliance-frontend`

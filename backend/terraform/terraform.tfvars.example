@@ -10,25 +10,14 @@ app_name = "crypto-compliance-backend"
 image    = "ghcr.io/your-org/crypto-compliance-backend:latest"
 replicas = 2
 
+# Set to LoadBalancer if you want direct external gRPC access.
 service_type = "ClusterIP"
-service_port = 80
-
-# Ingress is always created.
-# HTTP health checks are pinned to /healthz via BackendConfig.
-# A separate gRPC Service LoadBalancer is also created on port 50051.
-# ingress_class_name = "gce"
-# ingress_host       = "api.example.com"
-# ingress_path       = "/"
-# ingress_path_type  = "Prefix"
-# ingress_annotations = {
-#   "kubernetes.io/ingress.global-static-ip-name" = "crypto-compliance-backend-ip"
-# }
 
 postgres_password = "change-me"
 
 policy_hmac_secret = "change-me"
 
 env = {
-  # Optional overrides. Defaults for PORT, COMPLIANCE_DB_*, and
+  # Optional overrides. Defaults for COMPLIANCE_GRPC_PORT, COMPLIANCE_DB_*, and
   # COMPLIANCE_VALKEY_* come from root Terraform remote-state outputs.
 }

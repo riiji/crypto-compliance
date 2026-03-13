@@ -54,8 +54,6 @@ import {
   ValkeyComplianceCacheAdapterProvider,
   ValkeyComplianceLockAdapterProvider,
 } from './adapters/secondary/cache/valkey-compliance-cache.adapter';
-import { CompliancePolicyController } from './adapters/primary/http/compliance-policy.controller';
-import { ComplianceAdminPolicyController } from './adapters/primary/http/compliance-admin-policy.controller';
 import { ComplianceController } from './adapters/primary/grpc/compliance.controller';
 import {
   ComplianceAddressPolicyOrmEntity,
@@ -74,11 +72,7 @@ import {
       name: COMPLIANCE_PROVIDER_QUEUE_NAME,
     }),
   ],
-  controllers: [
-    CompliancePolicyController,
-    ComplianceAdminPolicyController,
-    ComplianceController,
-  ],
+  controllers: [ComplianceController],
   providers: [
     CheckAddressComplianceService,
     ListComplianceAddressPolicyService,

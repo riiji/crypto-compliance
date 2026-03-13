@@ -4,15 +4,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+COMMON_SH="${SCRIPT_DIR}/lib/common.sh"
 PROTO_MOUNT="${BACKEND_DIR}/src"
 HOT_DATA_FILE="${SCRIPT_DIR}/data/hot-requests.json"
+
+# shellcheck source=./lib/common.sh
+source "${COMMON_SH}"
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 RESULTS_ROOT="${RESULTS_ROOT:-${SCRIPT_DIR}/results}"
 RESULTS_DIR="${RESULTS_DIR:-${RESULTS_ROOT}/${RUN_ID}}"
 LATEST_LINK="${RESULTS_ROOT}/latest"
 
-TARGET="${TARGET:-10.43.233.113:50051}"
+TARGET="${TARGET:-localhost:50051}"
 CALL="${CALL:-compliance.ComplianceService.CheckAddressCompliance}"
 PROTO_FILE="${PROTO_FILE:-compliance/compliance.proto}"
 
@@ -41,61 +45,6 @@ CONTENTION_CONCURRENCY="${CONTENTION_CONCURRENCY:-300}"
 CONTENTION_DURATION_SECONDS="${CONTENTION_DURATION_SECONDS:-60}"
 
 DRY_RUN="${DRY_RUN:-0}"
-
-log() {
-  printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
-}
-
-require_command() {
-  local cmd="$1"
-  if ! command -v "${cmd}" >/dev/null 2>&1; then
-    log "Missing required command: ${cmd}"
-    exit 1
-  fi
-}
-
-run_cmd() {
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '[DRY_RUN] '
-    printf '%q ' "$@"
-    printf '\n'
-    return 0
-  fi
-
-  "$@"
-}
-
-format_rps_label() {
-  local rps="${1:-0}"
-  if [[ -z "${rps}" || "${rps}" == "0" ]]; then
-    printf 'unlimited'
-    return 0
-  fi
-
-  printf '%s' "${rps}"
-}
-
-resolve_connections() {
-  local concurrency="$1"
-  local override="${2:-}"
-
-  if [[ -n "${override}" ]]; then
-    printf '%s' "${override}"
-    return 0
-  fi
-
-  if [[ -z "${MAX_CONNECTIONS_PER_STREAM}" ]]; then
-    printf '%s' "${concurrency}"
-    return 0
-  fi
-
-  if (( MAX_CONNECTIONS_PER_STREAM <= 0 || concurrency <= MAX_CONNECTIONS_PER_STREAM )); then
-    printf '%s' "${concurrency}"
-    return 0
-  fi
-
-  printf '%s' "${MAX_CONNECTIONS_PER_STREAM}"
-}
 
 run_ghz_data_file() {
   local name="$1"

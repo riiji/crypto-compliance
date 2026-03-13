@@ -1,7 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
-import type { CompliancePolicyMutationAction } from '../../../application/ports/inbound/mutate-compliance-address-policy.use-case';
-import type { ComplianceAddressPolicy } from '../../../application/ports/outbound/compliance-address-policy.port';
-import type { CompliancePolicyMutationHistoryRecord } from '../../../application/ports/outbound/compliance-policy-mutation-history.port';
+import { BadRequestException } from "@nestjs/common";
+
+export type CompliancePolicy = "blacklist" | "whitelist";
+export type CompliancePolicyMutationAction = "add" | "remove";
 
 export interface CompliancePolicyMutationBodyDto {
   address: string;
@@ -21,11 +21,21 @@ export interface CompliancePolicyEntryDto {
 export interface CompliancePolicyMutationResponseDto {
   address: string;
   network: string;
-  policy: ComplianceAddressPolicy;
+  policy: CompliancePolicy;
   action: CompliancePolicyMutationAction;
   changed: boolean;
   idempotencyKey: string;
   replayed: boolean;
+}
+
+export interface CompliancePolicyMutationHistoryRecordDto {
+  address: string;
+  network: string;
+  policy: CompliancePolicy;
+  action: CompliancePolicyMutationAction;
+  changed: boolean;
+  idempotencyKey: string;
+  createdAt: string;
 }
 
 export function requireHeader(
@@ -56,32 +66,32 @@ export function optionalHeader(
 export function requireMutationBody(
   body: unknown,
 ): CompliancePolicyMutationBodyDto {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new BadRequestException('Request body must be a JSON object');
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new BadRequestException("Request body must be a JSON object");
   }
 
   const record = body as Record<string, unknown>;
   const address =
-    typeof record.address === 'string' ? record.address.trim() : '';
+    typeof record.address === "string" ? record.address.trim() : "";
   const network =
-    typeof record.network === 'string' ? record.network.trim() : '';
+    typeof record.network === "string" ? record.network.trim() : "";
 
   if (!address) {
-    throw new BadRequestException('Address must not be empty');
+    throw new BadRequestException("Address must not be empty");
   }
 
   if (!network) {
-    throw new BadRequestException('Network must not be empty');
+    throw new BadRequestException("Network must not be empty");
   }
 
   const confirmPolicySwitch =
     record.confirmPolicySwitch === undefined
       ? false
-      : typeof record.confirmPolicySwitch === 'boolean'
+      : typeof record.confirmPolicySwitch === "boolean"
         ? record.confirmPolicySwitch
         : (() => {
             throw new BadRequestException(
-              'confirmPolicySwitch must be a boolean when provided',
+              "confirmPolicySwitch must be a boolean when provided",
             );
           })();
 
@@ -96,5 +106,3 @@ export function maskAddress(address: string): string {
 
   return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
 }
-
-export type { CompliancePolicyMutationHistoryRecord };

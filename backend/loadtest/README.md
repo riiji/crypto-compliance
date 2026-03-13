@@ -55,7 +55,9 @@ grpcurl -version
 
 ## Recommended: run from a separate pod
 
-`backend/terraform.dev` does not expose the gRPC port on a Service. The remote helper discovers the backend pod IP and runs `ghz` from a separate pod in the same namespace, targeting gRPC on port `50051`.
+`backend/terraform.dev` now exposes the backend over a dedicated gRPC Service.
+The remote helper still discovers the backend pod IP and runs `ghz` from a
+separate pod in the same namespace to avoid service-level routing noise.
 
 From `backend/`:
 
@@ -78,8 +80,7 @@ KEEP_RUNNER=0
 Use this only for quick checks. It shares CPU with the backend and `kubectl port-forward` is not a stable throughput path.
 
 ```bash
-POD=$(kubectl -n default get pods -l app=crypto-compliance-backend-dev -o jsonpath='{.items[0].metadata.name}')
-kubectl -n default port-forward "$POD" 50051:50051 3000:3000
+kubectl -n default port-forward svc/crypto-compliance-backend-dev-grpc-svc 50051:50051
 ```
 
 Then run:
@@ -89,6 +90,9 @@ From `backend/`:
 ```bash
 pnpm run loadtest:grpc
 ```
+
+The local helper now defaults `TARGET` to `localhost:50051`, which matches the
+port-forward workflow above.
 
 Output is written to:
 
@@ -155,4 +159,5 @@ DRY_RUN=1 pnpm run loadtest:grpc:remote
 - Hot and cold streams are run as separate concurrent ghz processes.
 - Reported stage percentiles are conservative (`max(hot, cold)`), while achieved RPS and error rate are combined.
 - The parser counts object-shaped `errorDistribution` payloads from ghz, so summaries now reflect transport failures correctly.
-- Optional infra follow-up: expose explicit gRPC service port in `backend/terraform.dev` if you want service-level routing instead of targeting backend pod IPs.
+- The remote runner still targets backend pod IPs on purpose so the measurement
+  stays focused on the backend process rather than kube-proxy/service hops.

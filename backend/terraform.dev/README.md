@@ -8,7 +8,7 @@ Minimal backend dev deployment on Kubernetes.
 - Runs: `corepack enable && pnpm install && pnpm run start:dev`
 - Injects default `COMPLIANCE_DB_*` and `COMPLIANCE_VALKEY_*` env vars for
   in-cluster services (overridable via `env`)
-- Ingress is enabled by default to avoid `kubectl port-forward`
+- Exposes only the gRPC service
 
 Tooling baseline:
 - Terraform CLI `~> 1.14.6`
@@ -23,19 +23,10 @@ terraform init
 terraform apply
 ```
 
-## Ingress (no port-forward)
-
-Ingress settings are fixed in the module:
-- class: `traefik`
-- host: unset (hostless rule)
-- HTTP path: `/` with `Prefix`
-- gRPC path: `/compliance.ComplianceService` with `Prefix`
-- gRPC backend service uses Traefik `h2c`
-
 Apply and check output:
 
 ```bash
-terraform output ingress_name
+terraform output service_name
 terraform output grpc_service_name
-terraform output grpc_ingress_path
+terraform output grpc_service_port
 ```

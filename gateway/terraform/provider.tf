@@ -1,0 +1,23 @@
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+data "google_client_config" "current" {}
+
+locals {
+  normalized_gke_location = trimsuffix(trimspace(local.root_outputs.gke_location), "-")
+}
+
+data "google_container_cluster" "target" {
+  project  = var.project_id
+  name     = local.root_outputs.gke_cluster_name
+  location = local.normalized_gke_location
+}
+
+provider "kubernetes" {
+  host = "https://${data.google_container_cluster.target.endpoint}"
+
+  token                  = data.google_client_config.current.access_token
+  cluster_ca_certificate = base64decode(data.google_container_cluster.target.master_auth[0].cluster_ca_certificate)
+}

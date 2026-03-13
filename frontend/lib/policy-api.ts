@@ -40,7 +40,7 @@ export class UpstreamApiError extends Error {
   }
 }
 
-const DEFAULT_BACKEND_BASE_URL = 'http://localhost:3000';
+const DEFAULT_BACKEND_BASE_URL = 'http://localhost:3001';
 
 function backendBaseUrl(): string {
   const configured = process.env.BACKEND_API_BASE_URL?.trim();

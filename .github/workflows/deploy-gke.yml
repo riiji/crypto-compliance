@@ -25,13 +25,15 @@ env:
   GKE_LOCATION: ${{ vars.GKE_LOCATION || 'us-central1-a' }}
   GKE_NAMESPACE: ${{ vars.GKE_NAMESPACE || 'crypto-compliance' }}
   BACKEND_IMAGE_NAME: crypto-compliance-backend
+  GATEWAY_IMAGE_NAME: crypto-compliance-gateway
   FRONTEND_IMAGE_NAME: crypto-compliance-frontend
   BACKEND_DEPLOYMENT_NAME: crypto-compliance-backend
+  GATEWAY_DEPLOYMENT_NAME: crypto-compliance-gateway
   FRONTEND_DEPLOYMENT_NAME: crypto-compliance-frontend
 
 jobs:
   deploy:
-    name: Deploy backend and frontend
+    name: Deploy backend, gateway, and frontend
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     steps:
@@ -89,11 +91,12 @@ jobs:
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
           location: ${{ env.GKE_LOCATION }}
 
-      - name: Deploy backend and frontend
+      - name: Deploy backend, gateway, and frontend
         env:
           IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
         run: |
           BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}"
+          GATEWAY_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${GATEWAY_IMAGE_NAME}:${IMAGE_TAG}"
           FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}"
 
           kubectl -n "${GKE_NAMESPACE}" set image "deployment/${BACKEND_DEPLOYMENT_NAME}" "*=${BACKEND_IMAGE}"
@@ -127,10 +130,14 @@ jobs:
 
           kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${BACKEND_DEPLOYMENT_NAME}" --timeout=5m
 
+          kubectl -n "${GKE_NAMESPACE}" set image "deployment/${GATEWAY_DEPLOYMENT_NAME}" "*=${GATEWAY_IMAGE}"
+          kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${GATEWAY_DEPLOYMENT_NAME}" --timeout=5m
+
           kubectl -n "${GKE_NAMESPACE}" set image "deployment/${FRONTEND_DEPLOYMENT_NAME}" "*=${FRONTEND_IMAGE}"
           kubectl -n "${GKE_NAMESPACE}" rollout status "deployment/${FRONTEND_DEPLOYMENT_NAME}" --timeout=5m
 
       - name: Show deployed images
         run: |
           kubectl -n "${GKE_NAMESPACE}" get deployment "${BACKEND_DEPLOYMENT_NAME}" -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
+          kubectl -n "${GKE_NAMESPACE}" get deployment "${GATEWAY_DEPLOYMENT_NAME}" -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
           kubectl -n "${GKE_NAMESPACE}" get deployment "${FRONTEND_DEPLOYMENT_NAME}" -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'

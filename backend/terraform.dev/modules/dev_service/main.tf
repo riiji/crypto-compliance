@@ -1,6 +1,5 @@
 locals {
-  container_port = 3000
-  grpc_port      = var.grpc_service_port
+  grpc_port = var.grpc_service_port
 
   selector_labels = {
     app = var.app_name
@@ -45,18 +44,8 @@ resource "kubernetes_deployment_v1" "app" {
           working_dir       = var.workdir
 
           port {
-            name           = "http"
-            container_port = local.container_port
-          }
-
-          port {
             name           = "grpc"
             container_port = local.grpc_port
-          }
-
-          env {
-            name  = "PORT"
-            value = tostring(local.container_port)
           }
 
           env {
@@ -77,7 +66,7 @@ resource "kubernetes_deployment_v1" "app" {
           dynamic "env" {
             for_each = {
               for k, v in var.env : k => v
-              if k != "PORT" && k != "CI" && k != "COMPLIANCE_GRPC_PORT" && k != "COREPACK_ENABLE_DOWNLOAD_PROMPT"
+              if k != "CI" && k != "COMPLIANCE_GRPC_PORT" && k != "COREPACK_ENABLE_DOWNLOAD_PROMPT"
             }
             content {
               name  = env.key
@@ -95,9 +84,9 @@ resource "kubernetes_deployment_v1" "app" {
   }
 }
 
-resource "kubernetes_service_v1" "app" {
+resource "kubernetes_service_v1" "grpc" {
   metadata {
-    name      = "${var.app_name}-svc"
+    name      = "${var.app_name}-grpc-svc"
     namespace = var.namespace
     labels    = local.common_labels
   }
@@ -107,80 +96,10 @@ resource "kubernetes_service_v1" "app" {
     type     = var.service_type
 
     port {
-      name        = "http"
-      protocol    = "TCP"
-      port        = var.service_port
-      target_port = local.container_port
-    }
-  }
-}
-
-resource "kubernetes_service_v1" "grpc" {
-  metadata {
-    name      = "${var.app_name}-grpc-svc"
-    namespace = var.namespace
-    labels    = local.common_labels
-    annotations = {
-      "traefik.ingress.kubernetes.io/service.serversscheme" = "h2c"
-    }
-  }
-
-  spec {
-    selector = local.selector_labels
-    type     = "ClusterIP"
-
-    port {
       name        = "grpc"
       protocol    = "TCP"
       port        = local.grpc_port
       target_port = local.grpc_port
-    }
-  }
-}
-
-resource "kubernetes_ingress_v1" "app" {
-  metadata {
-    name        = "${var.app_name}-ing"
-    namespace   = var.namespace
-    labels      = local.common_labels
-    annotations = var.ingress_annotations
-  }
-
-  spec {
-    ingress_class_name = "traefik"
-
-    rule {
-      http {
-        path {
-          path      = var.grpc_ingress_path
-          path_type = "Prefix"
-
-          backend {
-            service {
-              name = kubernetes_service_v1.grpc.metadata[0].name
-
-              port {
-                number = local.grpc_port
-              }
-            }
-          }
-        }
-
-        path {
-          path      = "/"
-          path_type = "Prefix"
-
-          backend {
-            service {
-              name = kubernetes_service_v1.app.metadata[0].name
-
-              port {
-                number = var.service_port
-              }
-            }
-          }
-        }
-      }
     }
   }
 }

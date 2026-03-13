@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package compliance;
+
+service ComplianceService {
+  rpc CheckAddressCompliance (CheckAddressComplianceRequest) returns (CheckAddressComplianceResponse) {}
+  rpc ListCompliancePolicies (ListCompliancePoliciesRequest) returns (ListCompliancePoliciesResponse) {}
+  rpc ListCompliancePolicyMutationHistory (ListCompliancePolicyMutationHistoryRequest) returns (ListCompliancePolicyMutationHistoryResponse) {}
+  rpc SecureMutateCompliancePolicy (SecureMutateCompliancePolicyRequest) returns (CompliancePolicyMutationResponse) {}
+  rpc TrustedMutateCompliancePolicy (TrustedMutateCompliancePolicyRequest) returns (CompliancePolicyMutationResponse) {}
+}
+
+message CheckAddressComplianceRequest {
+  string address = 1;
+  string network = 2;
+}
+
+enum ComplianceCheckStatus {
+  COMPLIANCE_CHECK_STATUS_UNSPECIFIED = 0;
+  COMPLIANCE_CHECK_STATUS_READY = 1;
+  COMPLIANCE_CHECK_STATUS_IN_PROGRESS = 2;
+}
+
+enum ComplianceAssessmentSource {
+  COMPLIANCE_ASSESSMENT_SOURCE_UNSPECIFIED = 0;
+  COMPLIANCE_ASSESSMENT_SOURCE_PROVIDER = 1;
+  COMPLIANCE_ASSESSMENT_SOURCE_BLACKLIST = 2;
+  COMPLIANCE_ASSESSMENT_SOURCE_WHITELIST = 3;
+}
+
+enum ComplianceRetrievalSource {
+  COMPLIANCE_RETRIEVAL_SOURCE_UNSPECIFIED = 0;
+  COMPLIANCE_RETRIEVAL_SOURCE_PROVIDER = 1;
+  COMPLIANCE_RETRIEVAL_SOURCE_CACHE = 2;
+  COMPLIANCE_RETRIEVAL_SOURCE_POLICY = 3;
+}
+
+enum CompliancePolicy {
+  COMPLIANCE_POLICY_UNSPECIFIED = 0;
+  COMPLIANCE_POLICY_BLACKLIST = 1;
+  COMPLIANCE_POLICY_WHITELIST = 2;
+}
+
+enum CompliancePolicyAction {
+  COMPLIANCE_POLICY_ACTION_UNSPECIFIED = 0;
+  COMPLIANCE_POLICY_ACTION_ADD = 1;
+  COMPLIANCE_POLICY_ACTION_REMOVE = 2;
+}
+
+message ComplianceSignal {
+  string category = 1;
+  double score = 2;
+}
+
+message CheckAddressComplianceResponse {
+  string address = 1;
+  string network = 2;
+  ComplianceCheckStatus status = 3;
+  optional double risk_score = 4;
+  repeated ComplianceSignal signals = 5;
+  optional string checked_at = 6;
+  ComplianceAssessmentSource assessment_source = 7;
+  bool is_high_risk = 8;
+  ComplianceRetrievalSource retrieval_source = 9;
+}
+
+message CompliancePolicyEntry {
+  string address = 1;
+  string network = 2;
+}
+
+message ListCompliancePoliciesRequest {
+  CompliancePolicy policy = 1;
+}
+
+message ListCompliancePoliciesResponse {
+  repeated CompliancePolicyEntry entries = 1;
+}
+
+message ListCompliancePolicyMutationHistoryRequest {
+  optional int32 limit = 1;
+}
+
+message CompliancePolicyMutationHistoryRecord {
+  string address = 1;
+  string network = 2;
+  CompliancePolicy policy = 3;
+  CompliancePolicyAction action = 4;
+  bool changed = 5;
+  string idempotency_key = 6;
+  string created_at = 7;
+}
+
+message ListCompliancePolicyMutationHistoryResponse {
+  repeated CompliancePolicyMutationHistoryRecord records = 1;
+}
+
+message SecureMutateCompliancePolicyRequest {
+  string address = 1;
+  string network = 2;
+  CompliancePolicy policy = 3;
+  CompliancePolicyAction action = 4;
+  bool confirm_policy_switch = 5;
+  optional string idempotency_key = 6;
+  string timestamp = 7;
+  string signature = 8;
+  optional string requested_by = 9;
+}
+
+message TrustedMutateCompliancePolicyRequest {
+  string address = 1;
+  string network = 2;
+  CompliancePolicy policy = 3;
+  CompliancePolicyAction action = 4;
+  bool confirm_policy_switch = 5;
+  optional string idempotency_key = 6;
+  optional string requested_by = 7;
+}
+
+message CompliancePolicyMutationResponse {
+  string address = 1;
+  string network = 2;
+  CompliancePolicy policy = 3;
+  CompliancePolicyAction action = 4;
+  bool changed = 5;
+  string idempotency_key = 6;
+  bool replayed = 7;
+}

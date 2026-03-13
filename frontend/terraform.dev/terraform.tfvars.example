@@ -9,5 +9,5 @@ service_type   = "ClusterIP"
 service_port   = 3000
 
 env = {
-  BACKEND_API_BASE_URL = "http://crypto-compliance-backend-dev-svc.default.svc.cluster.local:3000"
+  BACKEND_API_BASE_URL = "http://crypto-compliance-gateway-dev-svc.default.svc.cluster.local:3000"
 }
