@@ -8,6 +8,7 @@ Minimal backend dev deployment on Kubernetes.
 - Runs: `corepack enable && pnpm install && pnpm run start:dev`
 - Injects default `COMPLIANCE_DB_*` and `COMPLIANCE_VALKEY_*` env vars for
   in-cluster services (overridable via `env`)
+- Injects `COMPLIANCE_POLICY_HMAC_SECRET` and `COMPLIANCE_INTERNAL_HMAC_SECRET`
 - Exposes only the gRPC service
 
 Tooling baseline:

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   fetchPolicyList,
   mutatePolicy,
+  requireAuthorizationHeader,
   UpstreamApiError,
 } from '@/lib/policy-api';
 
@@ -55,9 +56,10 @@ function validateBody(body: PolicyMutationBody): {
   };
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
   try {
-    const data = await fetchPolicyList('whitelist');
+    const authorization = requireAuthorizationHeader(request);
+    const data = await fetchPolicyList('whitelist', authorization);
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
     return errorResponse(error);
@@ -66,6 +68,7 @@ export async function GET(): Promise<NextResponse> {
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
+    const authorization = requireAuthorizationHeader(request);
     const body = (await request.json()) as PolicyMutationBody;
     const validated = validateBody(body);
 
@@ -74,6 +77,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       action: 'add',
       address: validated.address,
       network: validated.network,
+      authorization,
       confirmPolicySwitch: validated.confirmPolicySwitch,
     });
 
@@ -85,6 +89,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
 export async function DELETE(request: Request): Promise<NextResponse> {
   try {
+    const authorization = requireAuthorizationHeader(request);
     const body = (await request.json()) as PolicyMutationBody;
     const validated = validateBody(body);
 
@@ -93,6 +98,7 @@ export async function DELETE(request: Request): Promise<NextResponse> {
       action: 'remove',
       address: validated.address,
       network: validated.network,
+      authorization,
       confirmPolicySwitch: validated.confirmPolicySwitch,
     });
 

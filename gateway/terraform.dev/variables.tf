@@ -77,3 +77,17 @@ variable "env" {
   type        = map(string)
   default     = {}
 }
+
+variable "admin_jwt_secret" {
+  description = "JWT signing secret used by the gateway admin login flow."
+  type        = string
+  default     = "change-me"
+  sensitive   = true
+}
+
+variable "internal_hmac_secret" {
+  description = "Shared HMAC secret used between the gateway and backend for trusted gRPC admin mutations."
+  type        = string
+  default     = "change-me"
+  sensitive   = true
+}

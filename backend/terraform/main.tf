@@ -20,15 +20,17 @@ locals {
   valkey_port   = local.root_outputs.valkey_port
 
   default_env = {
-    COMPLIANCE_GRPC_PORT          = tostring(local.grpc_port)
-    COMPLIANCE_POLICY_HMAC_SECRET = var.policy_hmac_secret
-    COMPLIANCE_DB_HOST            = local.postgres_host
-    COMPLIANCE_DB_PORT            = tostring(local.root_outputs.postgres_port)
-    COMPLIANCE_DB_USER            = local.root_outputs.postgres_user
-    COMPLIANCE_DB_PASSWORD        = var.postgres_password
-    COMPLIANCE_DB_NAME            = local.root_outputs.postgres_database_name
-    COMPLIANCE_VALKEY_HOST        = local.valkey_host
-    COMPLIANCE_VALKEY_PORT        = tostring(local.valkey_port)
+    COMPLIANCE_GRPC_PORT            = tostring(local.grpc_port)
+    COMPLIANCE_API_URL              = var.compliance_api_url
+    COMPLIANCE_POLICY_HMAC_SECRET   = var.policy_hmac_secret
+    COMPLIANCE_INTERNAL_HMAC_SECRET = var.internal_hmac_secret
+    COMPLIANCE_DB_HOST              = local.postgres_host
+    COMPLIANCE_DB_PORT              = tostring(local.root_outputs.postgres_port)
+    COMPLIANCE_DB_USER              = local.root_outputs.postgres_user
+    COMPLIANCE_DB_PASSWORD          = var.postgres_password
+    COMPLIANCE_DB_NAME              = local.root_outputs.postgres_database_name
+    COMPLIANCE_VALKEY_HOST          = local.valkey_host
+    COMPLIANCE_VALKEY_PORT          = tostring(local.valkey_port)
   }
 
   effective_env = merge(local.default_env, var.env)

@@ -25,6 +25,8 @@ locals {
   default_env = {
     PORT                        = tostring(var.container_port)
     COMPLIANCE_BACKEND_GRPC_URL = local.effective_backend_grpc_url
+    COMPLIANCE_ADMIN_JWT_SECRET = var.admin_jwt_secret
+    COMPLIANCE_INTERNAL_HMAC_SECRET = var.internal_hmac_secret
   }
 
   effective_env = merge(local.default_env, var.env)

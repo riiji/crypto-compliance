@@ -122,6 +122,8 @@ export interface TrustedMutateCompliancePolicyRequest {
   confirmPolicySwitch: boolean;
   idempotencyKey?: string | undefined;
   requestedBy?: string | undefined;
+  timestamp: string;
+  signature: string;
 }
 
 export interface CompliancePolicyMutationResponse {

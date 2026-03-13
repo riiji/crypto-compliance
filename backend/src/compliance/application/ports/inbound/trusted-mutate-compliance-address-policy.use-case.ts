@@ -16,6 +16,8 @@ export interface TrustedMutateComplianceAddressPolicyInput {
   confirmPolicySwitch?: boolean;
   idempotencyKey?: string | null;
   requestedBy?: string | null;
+  timestamp: string;
+  signature: string;
 }
 
 export interface TrustedMutateComplianceAddressPolicyResult extends MutateComplianceAddressPolicyResult {

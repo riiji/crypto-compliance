@@ -1,10 +1,14 @@
 import { BadRequestException } from "@nestjs/common";
 import { ComplianceGatewayClient } from "./compliance-gateway.client";
 import { ComplianceAdminPolicyController } from "./compliance-admin-policy.controller";
+import type { AuthenticatedUser } from "../auth/jwt-auth.service";
 
 describe("ComplianceAdminPolicyController", () => {
   let gatewayClient: jest.Mocked<ComplianceGatewayClient>;
   let controller: ComplianceAdminPolicyController;
+  const user: AuthenticatedUser = {
+    username: "alice",
+  };
 
   beforeEach(() => {
     gatewayClient = {
@@ -35,8 +39,8 @@ describe("ComplianceAdminPolicyController", () => {
       },
       {
         "x-idempotency-key": "idem-1",
-        "x-user-id": "alice",
       },
+      user,
     );
 
     expect(gatewayClient.trustedMutatePolicy).toHaveBeenCalledWith({
@@ -68,6 +72,7 @@ describe("ComplianceAdminPolicyController", () => {
         network: "eip155:1",
       },
       {},
+      user,
     );
 
     expect(gatewayClient.trustedMutatePolicy).toHaveBeenCalledWith({
@@ -77,13 +82,35 @@ describe("ComplianceAdminPolicyController", () => {
       action: "remove",
       confirmPolicySwitch: false,
       idempotencyKey: null,
-      requestedBy: null,
+      requestedBy: "alice",
     });
   });
 
   it("throws bad request for non-object request body", async () => {
-    await expect(controller.addToBlacklist(null, {})).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      controller.addToBlacklist(null, {}, user),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("returns blacklist entries for an authenticated user", async () => {
+    gatewayClient.listPolicies.mockResolvedValue([
+      {
+        address: "0x1234567890abcdef1234567890abcdef12345678",
+        network: "eip155:1",
+      },
+    ]);
+
+    const result = await controller.getBlacklist(user);
+
+    expect(gatewayClient.listPolicies).toHaveBeenCalledWith("blacklist");
+    expect(result).toHaveLength(1);
+  });
+
+  it("returns history with parsed limit for an authenticated user", async () => {
+    gatewayClient.listPolicyMutationHistory.mockResolvedValue([]);
+
+    await controller.getHistory(user, { limit: "200" });
+
+    expect(gatewayClient.listPolicyMutationHistory).toHaveBeenCalledWith(200);
   });
 });

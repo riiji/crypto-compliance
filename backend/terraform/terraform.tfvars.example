@@ -14,8 +14,10 @@ replicas = 2
 service_type = "ClusterIP"
 
 postgres_password = "change-me"
+compliance_api_url = "https://api.example.com/v1/compliance-check"
 
 policy_hmac_secret = "change-me"
+internal_hmac_secret = "change-me"
 
 env = {
   # Optional overrides. Defaults for COMPLIANCE_GRPC_PORT, COMPLIANCE_DB_*, and

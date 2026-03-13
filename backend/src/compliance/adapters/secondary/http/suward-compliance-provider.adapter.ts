@@ -87,9 +87,7 @@ const suwardComplianceResponseSchema = z.object({
 
 @Injectable()
 export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
-  private readonly endpoint =
-    process.env.COMPLIANCE_API_URL ??
-    'https://api.suward.dev/v1/compliance-check';
+  private readonly endpoint = process.env.COMPLIANCE_API_URL?.trim();
 
   private readonly apiKey = process.env.COMPLIANCE_API_KEY;
 
@@ -103,6 +101,12 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
     if (!this.apiKey) {
       throw new ComplianceProviderConfigurationError(
         'COMPLIANCE_API_KEY is not configured',
+      );
+    }
+
+    if (!this.endpoint) {
+      throw new ComplianceProviderConfigurationError(
+        'COMPLIANCE_API_URL is not configured',
       );
     }
 
@@ -120,7 +124,7 @@ export class SuwardComplianceProviderAdapter implements ComplianceProviderPort {
   }> {
     let response: Response;
     try {
-      response = await fetch(this.endpoint, {
+      response = await fetch(this.endpoint!, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

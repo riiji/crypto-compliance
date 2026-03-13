@@ -1,72 +1,138 @@
-# Crypto Compliance Backend
+# Backend Service
 
-NestJS backend for compliance checks and policy management.
+The backend owns the compliance domain. It talks to the provider, writes history, evaluates risk, manages cache and idempotency, and exposes gRPC.
 
-## Current Scope
+Related docs:
 
-Implemented:
-- gRPC endpoint: `ComplianceService.CheckAddressCompliance`.
-- gRPC policy management:
-  - `ListCompliancePolicies`
-  - `ListCompliancePolicyMutationHistory`
-  - `SecureMutateCompliancePolicy`
-  - `TrustedMutateCompliancePolicy`
-- Provider execution path through BullMQ queue (not direct in-request provider calls).
-- Active Postgres persistence model:
-  - `compliance_address_policies`
-  - `compliance_check_history`
-  - `compliance_policy_mutation_history`
+- [Root setup guide](../README.md)
+- [Production Terraform](terraform/)
+- [Development Terraform](terraform.dev/)
+- [gRPC load testing](loadtest/README.md)
 
-Cleanup note:
-- Migration history is intentionally preserved as-is.
-- Legacy tables/entities (`compliance_check_records`, `compliance_check_signals`, `compliance_provider_responses`) may exist in DB schema history but are not used by runtime code.
+## What This Service Does
 
-## Requirements
+The backend exposes these gRPC methods:
 
-- Node.js `>= 24.14.0` (baseline `24.14.0`)
-- pnpm `>= 10.32.0` (baseline `10.32.0`)
+- `CheckAddressCompliance`
+- `ListCompliancePolicies`
+- `ListCompliancePolicyMutationHistory`
+- `SecureMutateCompliancePolicy`
+- `TrustedMutateCompliancePolicy`
+
+It also owns:
+
+- Postgres persistence for compliance history and policy mutations
+- Valkey-backed cache and locks
+- BullMQ provider execution
+- gRPC server reflection for `grpcurl` and similar tools
+
+The backend does not expose HTTP. The [`gateway/`](../gateway/README.md) service owns HTTP.
+
+## Run It Locally
+
+You need:
+
+- Node.js `24.14.0` or newer
+- pnpm `10.32.0`
 - Postgres
-- Valkey/Redis (used for cache, lock, and BullMQ transport)
+- Valkey
+- A `COMPLIANCE_API_KEY`
+- A `COMPLIANCE_API_URL`
 
-## Local Run
-
-From repository root:
+Install dependencies and run migrations:
 
 ```bash
 pnpm --dir backend install
 pnpm --dir backend db:migration:run
+```
+
+Set the required environment variables:
+
+- `COMPLIANCE_DB_HOST`
+- `COMPLIANCE_DB_PORT`
+- `COMPLIANCE_DB_USER`
+- `COMPLIANCE_DB_PASSWORD`
+- `COMPLIANCE_DB_NAME`
+- `COMPLIANCE_VALKEY_HOST`
+- `COMPLIANCE_VALKEY_PORT`
+- `COMPLIANCE_API_KEY`
+- `COMPLIANCE_API_URL`
+
+Useful optional variables:
+
+- `COMPLIANCE_GRPC_PORT`
+- `COMPLIANCE_POLICY_HMAC_SECRET`
+- `COMPLIANCE_INTERNAL_HMAC_SECRET`
+- `COMPLIANCE_INTERNAL_SIGNATURE_MAX_PAST_SECONDS`
+- `COMPLIANCE_INTERNAL_SIGNATURE_MAX_FUTURE_SECONDS`
+- `COMPLIANCE_CACHE_TTL_SECONDS`
+
+Start the service:
+
+```bash
 pnpm --dir backend start:dev
 ```
 
-## Environment Variables
+The default gRPC port is `50051`.
 
-Core runtime:
-- `COMPLIANCE_DB_HOST`, `COMPLIANCE_DB_PORT`, `COMPLIANCE_DB_USER`, `COMPLIANCE_DB_PASSWORD`, `COMPLIANCE_DB_NAME`
-- `COMPLIANCE_VALKEY_HOST`, `COMPLIANCE_VALKEY_PORT` (or Bull-specific `COMPLIANCE_BULL_*`)
-- `COMPLIANCE_API_KEY` (required when provider path is executed)
-- `COMPLIANCE_POLICY_HMAC_SECRET` (required only for signed service-to-service policy mutation endpoints)
+## Development On Kubernetes
 
-Optional overrides:
-- `COMPLIANCE_API_URL`
-- `COMPLIANCE_CACHE_TTL_SECONDS`
-- `COMPLIANCE_POLICY_SIGNATURE_MAX_PAST_SECONDS`
-- `COMPLIANCE_POLICY_SIGNATURE_MAX_FUTURE_SECONDS`
-- `COMPLIANCE_IDEMPOTENCY_POLL_INTERVAL_MS`
-- `COMPLIANCE_IDEMPOTENCY_WAIT_TIMEOUT_MS`
-- `COMPLIANCE_GRPC_PORT`
+Once the shared dev data services are up, deploy the backend dev stack:
 
-## Verification Commands
+```bash
+cd /home/ubuntu/crypto-compliance/backend/terraform.dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
 
-From repository root:
+Before you apply, set the provider URL and API key in `terraform.tfvars`:
+
+```hcl
+compliance_api_url = "https://api.example.com/v1/compliance-check"
+
+env = {
+  COMPLIANCE_API_KEY = "replace-me"
+}
+```
+
+This stack mounts your local `backend/` folder into the pod and runs watch mode. The gRPC service appears as `crypto-compliance-backend-dev-grpc-svc` by default.
+
+## Production
+
+Apply the shared production stack first. Then deploy the backend service:
+
+```bash
+cd /home/ubuntu/crypto-compliance/backend/terraform
+cp terraform.tfvars.example terraform.tfvars
+cp backend.hcl.example backend.hcl
+terraform init -migrate-state -backend-config=backend.hcl
+terraform plan
+terraform apply
+```
+
+Production notes:
+
+- The backend service is internal by default.
+- `service_type` defaults to `ClusterIP`.
+- Set `service_type = "LoadBalancer"` only if you want direct external gRPC access.
+- The gateway uses the backend gRPC service DNS name by default.
+- Trusted admin mutations require a matching internal HMAC signature from the gateway.
+
+## Verify It
+
+Run the test suite:
 
 ```bash
 pnpm --dir backend test --runInBand
-pnpm --dir backend lint
 pnpm --dir backend build
-pnpm --dir backend test:e2e
 ```
 
-## Notes
+Verify gRPC reflection:
 
-- HTTP policy endpoints now live in the separate `gateway/` service.
-- Legacy tables/entities (`compliance_check_records`, `compliance_check_signals`, `compliance_provider_responses`) may exist in DB schema history but are not used by runtime code.
+```bash
+kubectl -n default port-forward svc/crypto-compliance-backend-dev-grpc-svc 50051:50051
+grpcurl -plaintext localhost:50051 list
+```
+
+For throughput checks, use [loadtest/README.md](loadtest/README.md).

@@ -1,5 +1,11 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import {
   COMPLIANCE_IDEMPOTENCY_PORT,
@@ -32,6 +38,17 @@ const trustedPolicyMutationInputSchema = z.object({
     .max(128, 'Idempotency key is too long')
     .optional()
     .nullable(),
+  timestamp: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{1,20}$/, 'Timestamp must be unix seconds'),
+  signature: z
+    .string()
+    .trim()
+    .regex(
+      /^[0-9a-fA-F]{64}$/,
+      'Signature must be a lowercase or uppercase hex sha256 digest',
+    ),
   requestedBy: z
     .string()
     .trim()
@@ -43,6 +60,18 @@ const trustedPolicyMutationInputSchema = z.object({
 
 @Injectable()
 export class TrustedMutateComplianceAddressPolicyService implements TrustedMutateComplianceAddressPolicyUseCase {
+  private readonly secret = process.env.COMPLIANCE_INTERNAL_HMAC_SECRET;
+
+  private readonly allowedPastSeconds = this.parsePositiveInteger(
+    process.env.COMPLIANCE_INTERNAL_SIGNATURE_MAX_PAST_SECONDS,
+    10,
+  );
+
+  private readonly allowedFutureSeconds = this.parsePositiveInteger(
+    process.env.COMPLIANCE_INTERNAL_SIGNATURE_MAX_FUTURE_SECONDS,
+    20,
+  );
+
   constructor(
     @Inject(MUTATE_COMPLIANCE_ADDRESS_POLICY_USE_CASE)
     private readonly mutateComplianceAddressPolicyUseCase: MutateComplianceAddressPolicyUseCase,
@@ -55,7 +84,15 @@ export class TrustedMutateComplianceAddressPolicyService implements TrustedMutat
   async execute(
     input: TrustedMutateComplianceAddressPolicyInput,
   ): Promise<TrustedMutateComplianceAddressPolicyResult> {
+    if (!this.secret) {
+      throw new InternalServerErrorException(
+        'COMPLIANCE_INTERNAL_HMAC_SECRET is not configured',
+      );
+    }
+
     const validated = this.validateAndNormalizeInput(input);
+    this.assertTimestampWindow(validated.timestamp);
+    this.assertSignature(validated);
     const requestHash = this.createRequestHash(validated);
     const runMutation = async () => {
       const mutation = await this.mutateComplianceAddressPolicyUseCase.execute({
@@ -116,8 +153,52 @@ export class TrustedMutateComplianceAddressPolicyService implements TrustedMutat
       network: normalizedNetwork,
       idempotencyKey: parsed.data.idempotencyKey?.trim() ?? null,
       requestedBy: parsed.data.requestedBy?.trim() ?? null,
+      timestamp: parsed.data.timestamp.trim(),
+      signature: parsed.data.signature.trim().toLowerCase(),
       confirmPolicySwitch: parsed.data.confirmPolicySwitch ?? false,
     };
+  }
+
+  private assertTimestampWindow(rawTimestamp: string): void {
+    const timestamp = Number.parseInt(rawTimestamp, 10);
+    if (!Number.isInteger(timestamp)) {
+      throw new UnauthorizedException('Invalid signature timestamp');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const minAllowed = now - this.allowedPastSeconds;
+    const maxAllowed = now + this.allowedFutureSeconds;
+
+    if (timestamp < minAllowed || timestamp > maxAllowed) {
+      throw new UnauthorizedException('Signature timestamp is out of window');
+    }
+  }
+
+  private assertSignature(
+    input: TrustedMutateComplianceAddressPolicyInput,
+  ): void {
+    const expected = this.createSignature(input);
+    const actual = input.signature;
+    if (!this.isMatchingSignature(expected, actual)) {
+      throw new UnauthorizedException('Invalid signature');
+    }
+  }
+
+  private createSignature(
+    input: TrustedMutateComplianceAddressPolicyInput,
+  ): string {
+    const payload = [
+      input.timestamp,
+      input.idempotencyKey ?? '',
+      input.action,
+      input.policy,
+      input.network,
+      input.address,
+      input.confirmPolicySwitch ? '1' : '0',
+      input.requestedBy ?? '',
+    ].join('\n');
+
+    return createHmac('sha256', this.secret!).update(payload).digest('hex');
   }
 
   private createRequestHash(
@@ -139,6 +220,33 @@ export class TrustedMutateComplianceAddressPolicyService implements TrustedMutat
     return firstIssue
       ? firstIssue.message
       : 'Invalid trusted policy mutation request';
+  }
+
+  private isMatchingSignature(expected: string, actual: string): boolean {
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const actualBuffer = Buffer.from(actual, 'utf8');
+
+    if (expectedBuffer.length !== actualBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(expectedBuffer, actualBuffer);
+  }
+
+  private parsePositiveInteger(
+    raw: string | undefined,
+    fallback: number,
+  ): number {
+    if (!raw) {
+      return fallback;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return fallback;
+    }
+
+    return parsed;
   }
 }
 

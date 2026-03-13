@@ -158,26 +158,4 @@ describe("CompliancePolicyController", () => {
       }),
     ).rejects.toThrow("Request body must be a JSON object");
   });
-
-  it("returns blacklist entries", async () => {
-    gatewayClient.listPolicies.mockResolvedValue([
-      {
-        address: "0x1234567890abcdef1234567890abcdef12345678",
-        network: "eip155:1",
-      },
-    ]);
-
-    const result = await controller.getBlacklist();
-
-    expect(gatewayClient.listPolicies).toHaveBeenCalledWith("blacklist");
-    expect(result).toHaveLength(1);
-  });
-
-  it("returns history with parsed limit", async () => {
-    gatewayClient.listPolicyMutationHistory.mockResolvedValue([]);
-
-    await controller.getHistory({ limit: "200" });
-
-    expect(gatewayClient.listPolicyMutationHistory).toHaveBeenCalledWith(200);
-  });
 });

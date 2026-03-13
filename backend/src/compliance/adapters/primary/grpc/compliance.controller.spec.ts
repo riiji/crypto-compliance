@@ -248,6 +248,9 @@ describe('ComplianceController', () => {
       confirmPolicySwitch: false,
       idempotencyKey: 'idem-3',
       requestedBy: 'alice',
+      timestamp: '1700000000',
+      signature:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     });
 
     expect(trustedMutateUseCase.execute).toHaveBeenCalledWith({
@@ -258,6 +261,9 @@ describe('ComplianceController', () => {
       confirmPolicySwitch: false,
       idempotencyKey: 'idem-3',
       requestedBy: 'alice',
+      timestamp: '1700000000',
+      signature:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     });
     expect(response).toEqual({
       address: '0xabc',

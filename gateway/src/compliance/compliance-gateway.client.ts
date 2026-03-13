@@ -14,6 +14,7 @@ import {
 import type { ServiceError } from "@grpc/grpc-js";
 import { status as GrpcStatus } from "@grpc/grpc-js";
 import type { ClientGrpc } from "@nestjs/microservices";
+import { createHmac } from "node:crypto";
 import { firstValueFrom } from "rxjs";
 import {
   COMPLIANCE_SERVICE_NAME,
@@ -34,6 +35,9 @@ import { COMPLIANCE_BACKEND_GRPC_CLIENT } from "./grpc-client.options";
 @Injectable()
 export class ComplianceGatewayClient implements OnModuleInit {
   private complianceService!: ComplianceServiceClient;
+
+  private readonly internalHmacSecret =
+    process.env.COMPLIANCE_INTERNAL_HMAC_SECRET;
 
   constructor(
     @Inject(COMPLIANCE_BACKEND_GRPC_CLIENT)
@@ -131,16 +135,31 @@ export class ComplianceGatewayClient implements OnModuleInit {
     idempotencyKey: string | null;
     requestedBy: string | null;
   }): Promise<CompliancePolicyMutationResponseDto> {
+    if (!this.internalHmacSecret) {
+      throw new InternalServerErrorException(
+        "COMPLIANCE_INTERNAL_HMAC_SECRET is not configured",
+      );
+    }
+
+    const normalizedInput = this.normalizeTrustedMutationInput(input);
+    const timestamp = `${Math.floor(Date.now() / 1000)}`;
+    const signature = this.createTrustedMutationSignature({
+      ...normalizedInput,
+      timestamp,
+    });
+
     try {
       const response = await firstValueFrom(
         this.complianceService.trustedMutateCompliancePolicy({
-          address: input.address,
-          network: input.network,
-          policy: this.toGrpcPolicy(input.policy),
-          action: this.toGrpcAction(input.action),
-          confirmPolicySwitch: input.confirmPolicySwitch,
-          idempotencyKey: input.idempotencyKey ?? undefined,
-          requestedBy: input.requestedBy ?? undefined,
+          address: normalizedInput.address,
+          network: normalizedInput.network,
+          policy: this.toGrpcPolicy(normalizedInput.policy),
+          action: this.toGrpcAction(normalizedInput.action),
+          confirmPolicySwitch: normalizedInput.confirmPolicySwitch,
+          idempotencyKey: normalizedInput.idempotencyKey ?? undefined,
+          requestedBy: normalizedInput.requestedBy ?? undefined,
+          timestamp,
+          signature,
         }),
       );
 
@@ -148,6 +167,63 @@ export class ComplianceGatewayClient implements OnModuleInit {
     } catch (error) {
       throw this.toHttpException(error);
     }
+  }
+
+  private normalizeTrustedMutationInput(input: {
+    address: string;
+    network: string;
+    policy: CompliancePolicy;
+    action: CompliancePolicyMutationAction;
+    confirmPolicySwitch: boolean;
+    idempotencyKey: string | null;
+    requestedBy: string | null;
+  }): {
+    address: string;
+    network: string;
+    policy: CompliancePolicy;
+    action: CompliancePolicyMutationAction;
+    confirmPolicySwitch: boolean;
+    idempotencyKey: string | null;
+    requestedBy: string | null;
+  } {
+    const network = input.network.trim();
+    const address = input.address.trim();
+    const [namespace] = network.split(":", 2);
+
+    return {
+      ...input,
+      address: namespace === "eip155" ? address.toLowerCase() : address,
+      network,
+      confirmPolicySwitch: input.confirmPolicySwitch,
+      idempotencyKey: input.idempotencyKey?.trim() ?? null,
+      requestedBy: input.requestedBy?.trim() ?? null,
+    };
+  }
+
+  private createTrustedMutationSignature(input: {
+    address: string;
+    network: string;
+    policy: CompliancePolicy;
+    action: CompliancePolicyMutationAction;
+    confirmPolicySwitch: boolean;
+    idempotencyKey: string | null;
+    requestedBy: string | null;
+    timestamp: string;
+  }): string {
+    const payload = [
+      input.timestamp,
+      input.idempotencyKey ?? "",
+      input.action,
+      input.policy,
+      input.network,
+      input.address,
+      input.confirmPolicySwitch ? "1" : "0",
+      input.requestedBy ?? "",
+    ].join("\n");
+
+    return createHmac("sha256", this.internalHmacSecret!)
+      .update(payload)
+      .digest("hex");
   }
 
   private fromGrpcMutationResponse(

@@ -108,6 +108,18 @@ variable "policy_hmac_secret" {
   default     = "change-me"
 }
 
+variable "compliance_api_url" {
+  description = "Compliance provider URL exposed to the backend as COMPLIANCE_API_URL."
+  type        = string
+}
+
+variable "internal_hmac_secret" {
+  description = "Shared HMAC secret used between the gateway and backend for trusted gRPC admin mutations."
+  type        = string
+  default     = "change-me"
+  sensitive   = true
+}
+
 variable "env" {
   description = "Extra environment variables for backend dev container."
   type        = map(string)

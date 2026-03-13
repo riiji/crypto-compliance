@@ -26,6 +26,8 @@ locals {
       CI                              = "true"
       COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
       COMPLIANCE_BACKEND_GRPC_URL     = local.effective_backend_grpc_url
+      COMPLIANCE_ADMIN_JWT_SECRET     = var.admin_jwt_secret
+      COMPLIANCE_INTERNAL_HMAC_SECRET = var.internal_hmac_secret
     },
     var.env,
   )

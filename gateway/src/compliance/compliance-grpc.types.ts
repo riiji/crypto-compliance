@@ -65,6 +65,8 @@ export interface TrustedMutateCompliancePolicyRequest {
   confirmPolicySwitch: boolean;
   idempotencyKey?: string;
   requestedBy?: string;
+  timestamp: string;
+  signature: string;
 }
 
 export interface CompliancePolicyMutationResponse {

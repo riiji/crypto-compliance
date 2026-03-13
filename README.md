@@ -1,31 +1,137 @@
-# Crypto Compliance Infrastructure Layout
+# Crypto Compliance
 
-Repository structure:
+This repository has three services:
 
-- `backend/` - NestJS backend service code and Terraform deployment.
-- `gateway/` - NestJS HTTP gateway and Terraform deployment.
-- `frontend/` - frontend UI project and Terraform deployment.
-- `terraform/` - production/shared infrastructure on Google Cloud (GKE, Cloud SQL Postgres 18, Memorystore for Valkey).
-- `terraform.dev/` - lightweight development data services on Kubernetes.
+- [`backend/`](backend/README.md) handles compliance checks, policy storage, caching, queueing, and gRPC APIs.
+- [`gateway/`](gateway/README.md) exposes HTTP endpoints and forwards requests to the gRPC backend.
+- [`frontend/`](frontend/README.md) gives you a web UI for blacklist and whitelist operations.
 
-## Version Matrix
+Runtime path:
 
-- Node.js: `>= 24.14.0` (baseline `24.14.0`)
-- pnpm: `>= 10.32.0` (baseline `10.32.0`)
-- Terraform CLI: `~> 1.14.6`
-- kubectl (upstream client): `v1.34.5`
-- Terraform providers:
-  - `hashicorp/google ~> 7.23.0`
-  - `hashicorp/kubernetes ~> 3.0.1`
+```text
+Frontend (HTTP UI)
+  -> Gateway (HTTP/JSON)
+    -> Backend (gRPC)
+      -> Provider, Postgres, Valkey
+```
 
-## Requirements
+Infrastructure directories:
 
-- Terraform `~> 1.14.6`
-- Google Cloud project with billing enabled
-- Credentials configured for Terraform (`GOOGLE_APPLICATION_CREDENTIALS` or `gcloud auth application-default login`)
-- Container images published and reachable by GKE
+- [`terraform/`](terraform/) provisions shared production infrastructure on GCP.
+- [`terraform.dev/`](terraform.dev/) provisions local development data services on Kubernetes.
+- [`backend/loadtest/`](backend/loadtest/README.md) contains gRPC load-test tooling.
 
-## 1) Bootstrap production Terraform state bucket (`terraform/bootstrap-state/`)
+## Install Prerequisites
+
+### Local machine
+
+Install these first:
+
+- [Docker Engine](https://docs.docker.com/engine/install/)
+- [K3s](https://k3s.io/) and the [K3s installation guide](https://docs.k3s.io/installation)
+- [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+- Node.js `24.14.0` or newer
+
+Then enable pnpm:
+
+```bash
+corepack enable
+corepack prepare pnpm@10.32.0 --activate
+```
+
+K3s uses containerd by default. You still want Docker for building and inspecting images.
+
+### Prepare kubeconfig for K3s
+
+K3s writes its kubeconfig to `/etc/rancher/k3s/k3s.yaml`. Copy it into your home directory so Terraform and `kubectl` use the same cluster:
+
+```bash
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown "$(id -u)":"$(id -g)" ~/.kube/config
+kubectl get nodes
+```
+
+If `kubectl get nodes` shows a ready node, continue.
+
+## Local Development On K3s
+
+### 1. Start data services
+
+Start Postgres and Valkey first:
+
+```bash
+cd /home/ubuntu/crypto-compliance/terraform.dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
+You usually only need to change `namespace` and `postgres_password` in [`terraform.dev/terraform.tfvars.example`](terraform.dev/terraform.tfvars.example).
+
+### 2. Start the application services
+
+Deploy the backend first. Set the provider URL and API key in `backend/terraform.dev/terraform.tfvars` before you apply:
+
+```hcl
+compliance_api_url = "https://api.example.com/v1/compliance-check"
+
+env = {
+  COMPLIANCE_API_KEY = "replace-me"
+}
+```
+
+Then apply the three dev stacks in this order:
+
+```bash
+cd /home/ubuntu/crypto-compliance/backend/terraform.dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+
+cd /home/ubuntu/crypto-compliance/gateway/terraform.dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+
+cd /home/ubuntu/crypto-compliance/frontend/terraform.dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
+These dev stacks mount your local source tree into Kubernetes pods and run the services in watch mode.
+
+### 3. Access the services
+
+Port-forward the services from another terminal:
+
+```bash
+kubectl -n default port-forward svc/crypto-compliance-frontend-dev-svc 3000:3000
+kubectl -n default port-forward svc/crypto-compliance-gateway-dev-svc 3001:3000
+kubectl -n default port-forward svc/crypto-compliance-backend-dev-grpc-svc 50051:50051
+```
+
+Now use the stack:
+
+- Open `http://localhost:3000`
+- Call `http://localhost:3001/healthz`
+- Call the backend with `grpcurl`
+
+Smoke test commands:
+
+```bash
+curl http://localhost:3001/healthz
+grpcurl -plaintext localhost:50051 list
+```
+
+For gRPC performance tests, use [`backend/loadtest/README.md`](backend/loadtest/README.md).
+
+## Production Deployment On GCP
+
+### 1. Provision shared infrastructure
+
+Bootstrap the state bucket first:
 
 ```bash
 cd /home/ubuntu/crypto-compliance/terraform/bootstrap-state
@@ -35,149 +141,101 @@ terraform plan
 terraform apply
 ```
 
-## 2) Provision shared production infra (`terraform/`)
+Then provision the shared production stack:
 
 ```bash
 cd /home/ubuntu/crypto-compliance/terraform
 cp terraform.tfvars.example terraform.tfvars
 cp backend.hcl.example backend.hcl
-# edit project_id, postgres_password, and region/zone
-# update terraform/main.tf if you want to change fixed stack defaults
 terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
 
-This creates module-based infrastructure:
+This root stack creates the GKE cluster, network, Cloud SQL, Memorystore, and the GitHub Actions deployer identity.
 
-- Required GCP API enablement (`google_project_service`)
-- VPC + subnet + secondary ranges for GKE
-- GKE cluster + node pool
-- Cloud SQL PostgreSQL 18 (private IP)
-- Memorystore for Valkey
+### 2. Build and deploy the services
 
-Note: default Cloud SQL edition is `ENTERPRISE` so `db-custom-*` tiers work. If you switch to `ENTERPRISE_PLUS`, use a `db-perf-optimized-N-*` tier.
+Deployment paths:
 
-This root stack is the source of truth for backend/gateway/frontend production lookups through `terraform_remote_state`.
-GCS backend is configured via partial `backend "gcs"` and `backend.hcl` per HashiCorp docs:
-https://developer.hashicorp.com/terraform/language/backend/gcs
+- Use GitHub Actions in [`.github/workflows/build-push-images.yml`](.github/workflows/build-push-images.yml) and [`.github/workflows/deploy-gke.yml`](.github/workflows/deploy-gke.yml)
+- Build and apply the service stacks manually
 
-## 3) Deploy backend to GKE (`backend/terraform`)
+Manual rollout order:
+
+1. [`backend/terraform`](backend/terraform/)
+2. [`gateway/terraform`](gateway/terraform/)
+3. [`frontend/terraform`](frontend/terraform/)
+
+Apply them in that order:
 
 ```bash
 cd /home/ubuntu/crypto-compliance/backend/terraform
 cp terraform.tfvars.example terraform.tfvars
 cp backend.hcl.example backend.hcl
-# set image, project_id, root_state_bucket, and secrets
 terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
-```
 
-Backend stack resolves at apply time:
-
-- GKE cluster endpoint/CA from root state outputs
-- Postgres connection defaults from root state outputs
-- Valkey connection defaults from root state outputs
-
-## 4) Deploy gateway to GKE (`gateway/terraform`)
-
-```bash
 cd /home/ubuntu/crypto-compliance/gateway/terraform
 cp terraform.tfvars.example terraform.tfvars
 cp backend.hcl.example backend.hcl
-# set image, project_id, root_state_bucket, and ingress settings
 terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
-```
 
-Gateway stack resolves the backend gRPC DNS target automatically unless you
-override `backend_grpc_url`.
-
-## 5) Deploy frontend to GKE (`frontend/terraform`)
-
-```bash
 cd /home/ubuntu/crypto-compliance/frontend/terraform
 cp terraform.tfvars.example terraform.tfvars
 cp backend.hcl.example backend.hcl
-# set image, project_id, root_state_bucket, and env
 terraform init -migrate-state -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
 
-## Suggested order
+Production notes:
 
-1. Bootstrap state bucket (`terraform/bootstrap-state/`)
-2. Root infra (`terraform/`)
-3. Backend (`backend/terraform`)
-4. Gateway (`gateway/terraform`)
-5. Frontend (`frontend/terraform`)
+- The backend is internal by default. It exposes gRPC as a Kubernetes service.
+- The gateway owns public HTTP ingress.
+- The frontend talks to the gateway, not to the backend.
+- GitHub Actions runs backend migrations before it completes the backend rollout.
 
-## Development
+### 3. Verify the production stack
 
-For Kubernetes hot-reload development workflows:
-
-- `terraform.dev/` (dev Postgres + Valkey)
-- `backend/terraform.dev/`
-- `gateway/terraform.dev/`
-- `frontend/terraform.dev/`
-
-## GitHub Actions CI/CD (GKE)
-
-Workflows:
-- `.github/workflows/build-push-images.yml`
-- `.github/workflows/deploy-gke.yml`
-
-`build-push-images.yml`:
-- Triggered on push to `main` and manually via **Actions** UI.
-- Runs backend tests, gateway tests, and frontend lint.
-- Builds backend/gateway/frontend images and pushes to Artifact Registry.
-- Manual run supports custom `image_tag` and optional `push_latest`.
-
-`deploy-gke.yml`:
-- Triggered manually via **Actions** UI with `image_tag`.
-- Also auto-runs after successful **push-triggered** `build-push-images.yml` and deploys the matching short-SHA tag.
-- Updates backend image, runs backend TypeORM migrations against production DB, then waits for backend rollout.
-- Updates gateway deployment and waits for rollout.
-- Updates frontend deployment and waits for rollout.
-
-Required repository secrets:
-
-- `GCP_PROJECT_ID`
-- `GCP_SA_KEY`
-
-GitHub Actions deployer service account is now provisioned by root Terraform:
-
-- output: `github_actions_service_account_email`
-- default roles:
-  - `roles/container.developer`
-  - `roles/serviceusage.serviceUsageConsumer`
-- Artifact Registry repository is created by root Terraform module:
-  - defaults: `crypto-compliance` in `us-central1`
-- explicit repository IAM binding:
-  - repository: `crypto-compliance` in the configured `region`
-  - role: `roles/artifactregistry.writer`
-
-Create a JSON key for that service account and store it as `GCP_SA_KEY`:
+Check the rollouts:
 
 ```bash
-cd /home/ubuntu/crypto-compliance/terraform
-gcloud iam service-accounts keys create ./github-actions-sa-key.json \
-  --iam-account "$(terraform output -raw github_actions_service_account_email)"
+kubectl -n crypto-compliance get deploy,svc,ing
 ```
 
-Recommended repository variables (defaults are set in workflow):
+To call the backend with `grpcurl`, port-forward the gRPC service:
 
-- `GCP_REGION` (default `us-central1`)
-- `GCP_ARTIFACT_REPOSITORY` (default `crypto-compliance`)
-- `GKE_CLUSTER_NAME` (default `crypto-compliance-gke`)
-- `GKE_LOCATION` (default `us-central1-a`)
-- `GKE_NAMESPACE` (default `crypto-compliance`)
+```bash
+kubectl -n crypto-compliance port-forward svc/crypto-compliance-backend-grpc-svc 50051:50051
+grpcurl -plaintext localhost:50051 list
+```
 
-Expected Kubernetes deployment names:
+## FAQ
 
-- backend: `crypto-compliance-backend`
-- gateway: `crypto-compliance-gateway`
-- frontend: `crypto-compliance-frontend`
+### Do I need GCP for local development?
+
+No. Use K3s with [`terraform.dev/`](terraform.dev/), [`backend/terraform.dev/`](backend/terraform.dev/), [`gateway/terraform.dev/`](gateway/terraform.dev/), and [`frontend/terraform.dev/`](frontend/terraform.dev/).
+
+### Why does the frontend call the gateway instead of the backend?
+
+Because the backend is gRPC-only. The gateway owns HTTP.
+
+### Where do I set the provider URL and API key?
+
+Set `compliance_api_url` in `backend/terraform.dev/terraform.tfvars` for local Kubernetes development and in `backend/terraform/terraform.tfvars` for production. Set `COMPLIANCE_API_KEY` in the backend environment through the `env` map in those same tfvars files, or inject it through your secret management flow.
+
+### Do I need Docker if K3s already includes containerd?
+
+Yes. Use Docker to build and inspect images.
+
+### How do I test the backend directly?
+
+Port-forward the gRPC service and use `grpcurl`.
+
+### What order should I deploy production services?
+
+Deploy shared infrastructure first. Then deploy backend, gateway, and frontend.

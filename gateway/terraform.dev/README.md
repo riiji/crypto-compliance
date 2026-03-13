@@ -7,6 +7,7 @@ Minimal gateway dev deployment on Kubernetes.
 - Mounts gateway source from host path
 - Runs: `corepack enable && pnpm install && pnpm run start:dev`
 - Injects `COMPLIANCE_BACKEND_GRPC_URL` automatically for the backend dev service
+- Injects `COMPLIANCE_ADMIN_JWT_SECRET` and `COMPLIANCE_INTERNAL_HMAC_SECRET`
 
 Tooling baseline:
 - Terraform CLI `~> 1.14.6`

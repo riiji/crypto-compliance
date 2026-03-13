@@ -1,13 +1,15 @@
 locals {
   default_env = {
-    COMPLIANCE_POLICY_HMAC_SECRET = var.policy_hmac_secret
-    COMPLIANCE_DB_HOST            = "${var.postgres_service_name}.${var.data_services_namespace}.svc.cluster.local"
-    COMPLIANCE_DB_PORT            = tostring(var.postgres_port)
-    COMPLIANCE_DB_USER            = var.postgres_user
-    COMPLIANCE_DB_PASSWORD        = var.postgres_password
-    COMPLIANCE_DB_NAME            = var.postgres_db
-    COMPLIANCE_VALKEY_HOST        = "${var.valkey_service_name}.${var.data_services_namespace}.svc.cluster.local"
-    COMPLIANCE_VALKEY_PORT        = tostring(var.valkey_port)
+    COMPLIANCE_API_URL              = var.compliance_api_url
+    COMPLIANCE_POLICY_HMAC_SECRET   = var.policy_hmac_secret
+    COMPLIANCE_INTERNAL_HMAC_SECRET = var.internal_hmac_secret
+    COMPLIANCE_DB_HOST              = "${var.postgres_service_name}.${var.data_services_namespace}.svc.cluster.local"
+    COMPLIANCE_DB_PORT              = tostring(var.postgres_port)
+    COMPLIANCE_DB_USER              = var.postgres_user
+    COMPLIANCE_DB_PASSWORD          = var.postgres_password
+    COMPLIANCE_DB_NAME              = var.postgres_db
+    COMPLIANCE_VALKEY_HOST          = "${var.valkey_service_name}.${var.data_services_namespace}.svc.cluster.local"
+    COMPLIANCE_VALKEY_PORT          = tostring(var.valkey_port)
   }
 
   effective_env = merge(local.default_env, var.env)

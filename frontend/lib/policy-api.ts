@@ -30,6 +30,12 @@ export interface CompliancePolicyMutationHistoryRecord {
   createdAt: string;
 }
 
+export interface AuthLoginResponse {
+  username: string;
+  accessToken: string;
+  expiresAt: string;
+}
+
 export class UpstreamApiError extends Error {
   constructor(
     message: string,
@@ -57,6 +63,20 @@ function normalizeNetwork(value: string): string {
 
 function normalizeAddress(value: string): string {
   return value.trim();
+}
+
+export function requireAuthorizationHeader(request: Request): string {
+  const header = request.headers.get('authorization')?.trim() ?? '';
+  if (!header.startsWith('Bearer ')) {
+    throw new UpstreamApiError('Authentication is required', 401);
+  }
+
+  const token = header.slice('Bearer '.length).trim();
+  if (!token) {
+    throw new UpstreamApiError('Authentication is required', 401);
+  }
+
+  return `Bearer ${token}`;
 }
 
 async function parseMaybeJson(response: Response): Promise<unknown> {
@@ -91,12 +111,16 @@ async function throwIfNotOk(response: Response): Promise<void> {
 
 export async function fetchPolicyList(
   policy: CompliancePolicy,
+  authorization: string,
 ): Promise<CompliancePolicyEntry[]> {
   const response = await fetch(
-    `${backendBaseUrl()}/compliance/policies/${policy}`,
+    `${backendBaseUrl()}/compliance/admin/policies/${policy}`,
     {
       method: 'GET',
       cache: 'no-store',
+      headers: {
+        authorization,
+      },
     },
   );
 
@@ -107,14 +131,18 @@ export async function fetchPolicyList(
 }
 
 export async function fetchPolicyHistory(
+  authorization: string,
   limit?: number,
 ): Promise<CompliancePolicyMutationHistoryRecord[]> {
   const query = Number.isInteger(limit) && limit && limit > 0 ? `?limit=${limit}` : '';
   const response = await fetch(
-    `${backendBaseUrl()}/compliance/policies/history${query}`,
+    `${backendBaseUrl()}/compliance/admin/policies/history${query}`,
     {
       method: 'GET',
       cache: 'no-store',
+      headers: {
+        authorization,
+      },
     },
   );
 
@@ -131,6 +159,7 @@ export async function mutatePolicy(input: {
   action: CompliancePolicyAction;
   address: string;
   network: string;
+  authorization: string;
   idempotencyKey?: string;
   confirmPolicySwitch?: boolean;
 }): Promise<CompliancePolicyMutationResponse> {
@@ -146,6 +175,7 @@ export async function mutatePolicy(input: {
       cache: 'no-store',
       headers: {
         'content-type': 'application/json',
+        authorization: input.authorization,
         'x-idempotency-key': idempotencyKey,
       },
       body: JSON.stringify({
@@ -160,4 +190,24 @@ export async function mutatePolicy(input: {
   const payload = await parseMaybeJson(response);
 
   return payload as CompliancePolicyMutationResponse;
+}
+
+export async function loginWithUsername(
+  username: string,
+): Promise<AuthLoginResponse> {
+  const response = await fetch(`${backendBaseUrl()}/auth/login`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      username: username.trim(),
+    }),
+  });
+
+  await throwIfNotOk(response);
+  const payload = await parseMaybeJson(response);
+
+  return payload as AuthLoginResponse;
 }

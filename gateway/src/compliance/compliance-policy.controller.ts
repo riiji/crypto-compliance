@@ -2,19 +2,14 @@ import {
   Body,
   Controller,
   Delete,
-  Get,
   Headers,
   Logger,
   Post,
-  Query,
 } from "@nestjs/common";
 import { ComplianceGatewayClient } from "./compliance-gateway.client";
 import type {
   CompliancePolicy,
-  CompliancePolicyEntryDto,
-  CompliancePolicyHistoryQueryDto,
   CompliancePolicyMutationAction,
-  CompliancePolicyMutationHistoryRecordDto,
   CompliancePolicyMutationResponseDto,
 } from "./compliance-policy-http.shared";
 import {
@@ -31,36 +26,6 @@ export class CompliancePolicyController {
   constructor(
     private readonly complianceGatewayClient: ComplianceGatewayClient,
   ) {}
-
-  @Get("blacklist")
-  async getBlacklist(): Promise<CompliancePolicyEntryDto[]> {
-    const entries =
-      await this.complianceGatewayClient.listPolicies("blacklist");
-    this.logger.log(`GET blacklist returned ${entries.length} entries`);
-    return entries;
-  }
-
-  @Get("whitelist")
-  async getWhitelist(): Promise<CompliancePolicyEntryDto[]> {
-    const entries =
-      await this.complianceGatewayClient.listPolicies("whitelist");
-    this.logger.log(`GET whitelist returned ${entries.length} entries`);
-    return entries;
-  }
-
-  @Get("history")
-  async getHistory(
-    @Query() query: CompliancePolicyHistoryQueryDto,
-  ): Promise<CompliancePolicyMutationHistoryRecordDto[]> {
-    const parsedLimit =
-      query.limit === undefined ? undefined : Number.parseInt(query.limit, 10);
-    const records =
-      await this.complianceGatewayClient.listPolicyMutationHistory(parsedLimit);
-    this.logger.log(
-      `GET history limit=${parsedLimit ?? "default"} returned ${records.length} records`,
-    );
-    return records;
-  }
 
   @Post("blacklist")
   async addToBlacklist(

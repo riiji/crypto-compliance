@@ -211,6 +211,8 @@ export class ComplianceController implements ComplianceServiceController {
           confirmPolicySwitch: request.confirmPolicySwitch,
           idempotencyKey: request.idempotencyKey ?? null,
           requestedBy: request.requestedBy ?? null,
+          timestamp: request.timestamp,
+          signature: request.signature,
         });
 
       return this.toGrpcPolicyMutationResponse(result);

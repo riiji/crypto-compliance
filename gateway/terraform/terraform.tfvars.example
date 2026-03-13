@@ -10,6 +10,9 @@ app_name = "crypto-compliance-gateway"
 image    = "ghcr.io/your-org/crypto-compliance-gateway:latest"
 replicas = 2
 
+admin_jwt_secret    = "change-me"
+internal_hmac_secret = "change-me"
+
 service_type = "ClusterIP"
 service_port = 80
 
