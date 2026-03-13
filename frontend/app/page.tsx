@@ -1,13 +1,13 @@
 'use client';
 
+import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CUSTOM_NETWORK_OPTION_ID,
-  DEFAULT_NETWORK_OPTION_ID,
+  DEFAULT_NETWORK_CAIP2,
   getNetworkOptionByCaip2,
-  getNetworkOptionById,
-  NETWORK_OPTIONS,
 } from '@/lib/network-options';
+import { NetworkCombobox } from '@/components/network-combobox';
+import { AssetBadges, NetworkAvatar } from '@/components/network-ui';
 
 type CompliancePolicy = 'blacklist' | 'whitelist';
 
@@ -28,9 +28,7 @@ interface CompliancePolicyMutationHistoryRecord {
 
 interface FormState {
   address: string;
-  networkMode: 'preset' | 'custom';
-  networkPresetId: string;
-  customNetwork: string;
+  network: string;
 }
 
 interface LoginResponse {
@@ -59,27 +57,12 @@ const TOKEN_STORAGE_KEY = 'compliance.console.jwt';
 function createInitialFormState(): FormState {
   return {
     address: '',
-    networkMode: 'preset',
-    networkPresetId: DEFAULT_NETWORK_OPTION_ID,
-    customNetwork: '',
+    network: DEFAULT_NETWORK_CAIP2,
   };
 }
 
 function resolveFormNetwork(form: FormState): string {
-  if (form.networkMode === 'custom') {
-    return form.customNetwork.trim();
-  }
-
-  return getNetworkOptionById(form.networkPresetId)?.caip2 ?? '';
-}
-
-function describeNetwork(network: string): string {
-  const option = getNetworkOptionByCaip2(network);
-  if (!option) {
-    return 'Custom network';
-  }
-
-  return option.label;
+  return form.network.trim();
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -147,6 +130,38 @@ function persistSession(session: AuthSession): void {
 function clearStoredSession(): void {
   window.localStorage.removeItem(USERNAME_STORAGE_KEY);
   window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+function NetworkMeta({
+  network,
+}: {
+  network: string;
+}): JSX.Element {
+  const option = getNetworkOptionByCaip2(network);
+
+  return (
+    <div className="flex items-start gap-3">
+      <NetworkAvatar option={option} size="sm" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-medium text-slate-700">
+            {option?.label ?? 'Custom network'}
+          </p>
+          {option ? (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {option.family}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">{network}</p>
+        {option ? (
+          <div className="mt-2">
+            <AssetBadges assets={option.assets} limit={3} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -272,26 +287,6 @@ export default function Home() {
           ...previous[policy],
           [field]: value,
         },
-      }));
-    },
-    [],
-  );
-
-  const setNetworkSelection = useCallback(
-    (policy: CompliancePolicy, nextValue: string) => {
-      setForms((previous) => ({
-        ...previous,
-        [policy]:
-          nextValue === CUSTOM_NETWORK_OPTION_ID
-            ? {
-                ...previous[policy],
-                networkMode: 'custom',
-              }
-            : {
-                ...previous[policy],
-                networkMode: 'preset',
-                networkPresetId: nextValue,
-              },
       }));
     },
     [],
@@ -543,12 +538,10 @@ export default function Home() {
           {(['blacklist', 'whitelist'] as CompliancePolicy[]).map((policy) => {
             const entries = entriesByPolicy[policy];
             const form = forms[policy];
-            const selectedNetworkOption =
-              form.networkMode === 'preset'
-                ? getNetworkOptionById(form.networkPresetId)
-                : undefined;
+            const selectedNetworkOption = getNetworkOptionByCaip2(form.network);
             const effectiveNetwork = resolveFormNetwork(form);
             const canSubmit = Boolean(form.address.trim() && effectiveNetwork);
+            const networkHintId = `${policy}-network-hint`;
             const title = policy === 'blacklist' ? 'Blacklist' : 'Whitelist';
             const accent =
               policy === 'blacklist'
@@ -582,50 +575,36 @@ export default function Home() {
                     <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                       Network
                     </label>
-                    <select
-                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                      onChange={(event) =>
-                        setNetworkSelection(policy, event.target.value)
-                      }
-                      value={
-                        form.networkMode === 'custom'
-                          ? CUSTOM_NETWORK_OPTION_ID
-                          : form.networkPresetId
-                      }
-                    >
-                      {NETWORK_OPTIONS.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                      <option value={CUSTOM_NETWORK_OPTION_ID}>
-                        Other / custom CAIP-2
-                      </option>
-                    </select>
+                    <div className="mt-2">
+                      <NetworkCombobox
+                        describedById={networkHintId}
+                        disabled={isMutating}
+                        onChange={(nextValue) =>
+                          setFormField(policy, 'network', nextValue)
+                        }
+                        value={form.network}
+                      />
+                    </div>
 
-                    <p className="mt-2 text-xs text-slate-500">
-                      {selectedNetworkOption?.description ??
-                        'Use a custom CAIP-2 chain id when the target network is not in the preset list.'}
+                    <p className="mt-2 text-xs text-slate-500" id={networkHintId}>
+                      {selectedNetworkOption
+                        ? `${selectedNetworkOption.description} Search by network name, ticker, asset symbol, or paste CAIP-2.`
+                        : 'Type a network name, ticker, asset symbol, or paste a custom CAIP-2 chain id.'}
                     </p>
 
-                    {form.networkMode === 'custom' ? (
-                      <input
-                        className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-                        onChange={(event) =>
-                          setFormField(policy, 'customNetwork', event.target.value)
-                        }
-                        placeholder="namespace:reference"
-                        value={form.customNetwork}
-                      />
-                    ) : null}
-
-                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2">
+                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Sent to backend
                       </p>
-                      <p className="mt-1 font-mono text-xs text-slate-900">
-                        {effectiveNetwork || 'Select a network'}
-                      </p>
+                      {effectiveNetwork ? (
+                        <div className="mt-2">
+                          <NetworkMeta network={effectiveNetwork} />
+                        </div>
+                      ) : (
+                        <p className="mt-1 font-mono text-xs text-slate-900">
+                          Select a network
+                        </p>
+                      )}
                     </div>
                   </div>
                   <button
@@ -650,13 +629,10 @@ export default function Home() {
                         className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-slate-600">
-                            {describeNetwork(entry.network)}
-                          </p>
-                          <p className="truncate font-mono text-sm text-slate-900">
+                          <NetworkMeta network={entry.network} />
+                          <p className="mt-3 truncate font-mono text-sm text-slate-900">
                             {entry.address}
                           </p>
-                          <p className="text-xs text-slate-500">{entry.network}</p>
                         </div>
                         <button
                           className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-400"
@@ -723,13 +699,10 @@ export default function Home() {
                         {record.action}
                       </td>
                       <td className="px-3 py-3 align-top">
-                        <div className="text-xs font-medium text-slate-600">
-                          {describeNetwork(record.network)}
-                        </div>
-                        <div className="font-mono text-xs text-slate-900">
+                        <NetworkMeta network={record.network} />
+                        <div className="mt-3 font-mono text-xs text-slate-900">
                           {record.address}
                         </div>
-                        <div className="text-xs text-slate-500">{record.network}</div>
                       </td>
                       <td className="rounded-r-xl px-3 py-3 align-top">
                         <div className="font-mono text-xs text-slate-900">
