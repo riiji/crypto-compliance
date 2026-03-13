@@ -49,7 +49,8 @@ export function NetworkCombobox({
 
   const selectedOption = useMemo(() => getNetworkOptionByCaip2(value), [value]);
   const baselineQuery = selectedOption?.label ?? value.trim();
-  const trimmedQuery = query.trim();
+  const activeQuery = isOpen ? query : baselineQuery;
+  const trimmedQuery = activeQuery.trim();
   const searchQuery =
     isOpen && trimmedQuery === baselineQuery ? '' : trimmedQuery;
   const filteredOptions = useMemo(
@@ -65,10 +66,15 @@ export function NetworkCombobox({
     trimmedQuery.length > 0 &&
     (trimmedQuery.includes(':') || filteredOptions.length === 0) &&
     getNetworkOptionByCaip2(trimmedQuery) === undefined;
-
-  useEffect(() => {
-    setQuery(selectedOption?.label ?? value.trim());
-  }, [selectedOption, value]);
+  const isCustomOptionSelected = showCustomOption && trimmedQuery === value.trim();
+  const closeCombobox = useCallback(() => {
+    setQuery(baselineQuery);
+    setIsOpen(false);
+  }, [baselineQuery]);
+  const openCombobox = useCallback(() => {
+    setQuery(baselineQuery);
+    setIsOpen(true);
+  }, [baselineQuery]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -77,7 +83,7 @@ export function NetworkCombobox({
 
     function handlePointerDown(event: MouseEvent): void {
       if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
+        closeCombobox();
       }
     }
 
@@ -85,7 +91,7 @@ export function NetworkCombobox({
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
     };
-  }, [isOpen]);
+  }, [closeCombobox, isOpen]);
 
   const commitSelection = useCallback(
     (nextValue: string) => {
@@ -117,13 +123,12 @@ export function NetworkCombobox({
             setIsOpen(true);
           }}
           onFocus={(event) => {
-            setIsOpen(true);
+            openCombobox();
             event.currentTarget.select();
           }}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
-              setIsOpen(false);
-              setQuery(selectedOption?.label ?? value.trim());
+              closeCombobox();
               return;
             }
 
@@ -143,22 +148,21 @@ export function NetworkCombobox({
           placeholder="Search network, ticker, asset, or paste CAIP-2"
           role="combobox"
           spellCheck={false}
-          value={query}
+          value={activeQuery}
         />
         <button
           aria-label="Toggle network list"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled}
           onClick={() => {
-            setIsOpen((current) => {
-              const nextOpen = !current;
-              if (nextOpen) {
-                inputRef.current?.focus();
-                inputRef.current?.select();
-              }
+            if (isOpen) {
+              closeCombobox();
+              return;
+            }
 
-              return nextOpen;
-            });
+            openCombobox();
+            inputRef.current?.focus();
+            inputRef.current?.select();
           }}
           type="button"
         >
@@ -216,6 +220,7 @@ export function NetworkCombobox({
 
             {showCustomOption ? (
               <button
+                aria-selected={isCustomOptionSelected}
                 className="mt-1 flex w-full items-start gap-3 rounded-2xl border border-dashed border-slate-300 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50"
                 onClick={() => commitSelection(trimmedQuery)}
                 onMouseDown={(event) => event.preventDefault()}

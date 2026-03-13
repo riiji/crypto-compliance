@@ -29,6 +29,7 @@ Install these first:
 
 - [Git](https://git-scm.com/downloads)
 - [Docker Engine](https://docs.docker.com/engine/install/)
+- [Node.js](https://nodejs.org/) `24.14.0` or newer
 - [K3s](https://k3s.io/) and the [K3s installation guide](https://docs.k3s.io/installation)
 - [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 
@@ -48,7 +49,15 @@ The commands below assume the repository lives at `/home/ubuntu/crypto-complianc
 
 ### Prepare kubeconfig for K3s
 
-K3s writes its kubeconfig to `/etc/rancher/k3s/k3s.yaml`. Copy it into your home directory so Terraform and `kubectl` use the same cluster:
+K3s writes its kubeconfig to `/etc/rancher/k3s/k3s.yaml`.
+
+For local development only, make it readable before running local `kubectl` commands:
+
+```bash
+sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+```
+
+Then copy it into your home directory so Terraform and `kubectl` use the same cluster:
 
 ```bash
 mkdir -p ~/.kube
